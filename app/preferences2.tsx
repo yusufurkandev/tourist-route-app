@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -6,14 +6,12 @@ export default function Preferences2() {
 
   const router = useRouter();
 
-  // 🔥 1. SAYFADAN GELENLER
   const params = useLocalSearchParams();
-  const { travelType, interest, duration } = params;
+  const { city, travelType, interest, duration } = params;
 
-  // 🔥 BU SAYFADAKİLER
   const [transport, setTransport] = useState('');
   const [budget, setBudget] = useState('');
-  const [density, setDensity] = useState('');
+  const [density, setDensity] = useState<number>(0); // 🔥 NUMBER
 
   const transportOptions = [
     { label: 'Yürüyüş', icon: '🚶' },
@@ -27,24 +25,31 @@ export default function Preferences2() {
     { label: 'Yüksek', icon: '💎' },
   ];
 
+  // 🔥 EN ÖNEMLİ KISIM (VALUE EKLEDİK)
   const densityOptions = [
-    { label: 'Az (2-3 yer)', icon: '🐢' },
-    { label: 'Orta (4-6 yer)', icon: '🚶' },
-    { label: 'Yoğun (7+ yer)', icon: '🏃' },
+    { label: 'Az (2-3 yer)', value: 3, icon: '🐢' },
+    { label: 'Orta (4-6 yer)', value: 5, icon: '🚶' },
+    { label: 'Yoğun (7+ yer)', value: 8, icon: '🏃' },
   ];
 
   return (
     <View style={styles.container}>
 
-      {/* PROGRESS */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '100%' }]} />
-        </View>
-        <Text style={styles.progressText}>Adım 2 / 2</Text>
-      </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
-      <View style={styles.content}>
+        {/* PROGRESS */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: '100%' }]} />
+          </View>
+          <Text style={styles.progressText}>Adım 2 / 2</Text>
+        </View>
+
+        {/* ŞEHİR */}
+        <View style={styles.cityContainer}>
+          <Text style={styles.cityLabel}>Seçilen Şehir</Text>
+          <Text style={styles.cityValue}>📍 {city}</Text>
+        </View>
 
         {/* ULAŞIM */}
         <View style={styles.card}>
@@ -98,9 +103,9 @@ export default function Preferences2() {
                 key={index}
                 style={[
                   styles.option,
-                  density === item.label && styles.selected
+                  density === item.value && styles.selected
                 ]}
-                onPress={() => setDensity(item.label)}
+                onPress={() => setDensity(item.value)} // 🔥 VALUE SET
               >
                 <Text style={styles.icon}>{item.icon}</Text>
                 <Text style={styles.optionText}>{item.label}</Text>
@@ -109,35 +114,33 @@ export default function Preferences2() {
           </View>
         </View>
 
-      </View>
+        {/* BUTON */}
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => {
+            if (!transport || !budget || !density) {
+              alert("Lütfen tüm seçimleri yapın");
+              return;
+            }
 
-      {/* BUTON */}
-      <TouchableOpacity 
-        style={styles.button}
-        onPress={() => {
-          // 🔥 VALIDATION
-          if (!transport || !budget || !density) {
-            alert("Lütfen tüm seçimleri yapın");
-            return;
-          }
+            router.push({
+              pathname: '/route',
+              params: {
+                city,
+                travelType,
+                interest,
+                duration,
+                transport,
+                budget,
+                density: density.toString(), // 🔥 STRING GÖNDERİYORUZ
+              },
+            });
+          }}
+        >
+          <Text style={styles.buttonText}>Rota Oluştur</Text>
+        </TouchableOpacity>
 
-          // 🔥 ROUTE'A TÜM VERİYİ GÖNDER
-          router.push({
-            pathname: '/route',
-            params: {
-              city: "Istanbul", // şimdilik sabit
-              travelType,
-              interest,
-              duration,
-              transport,
-              budget,
-              density,
-            },
-          });
-        }}
-      >
-        <Text style={styles.buttonText}>Rota Oluştur</Text>
-      </TouchableOpacity>
+      </ScrollView>
 
     </View>
   );
@@ -146,8 +149,11 @@ export default function Preferences2() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#f2f4f7',
+  },
+
+  content: {
+    padding: 20,
   },
 
   progressContainer: {
@@ -172,9 +178,25 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 
-  content: {
-    flex: 1,
-    justifyContent: 'center',
+  cityContainer: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+    marginBottom: 15,
+    alignItems: 'center',
+    elevation: 3,
+  },
+
+  cityLabel: {
+    fontSize: 12,
+    color: '#777',
+  },
+
+  cityValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#00a884',
   },
 
   card: {
@@ -218,6 +240,8 @@ const styles = StyleSheet.create({
   },
 
   button: {
+    marginTop: 20,
+    marginBottom: 30,
     backgroundColor: '#00a884',
     padding: 15,
     borderRadius: 12,

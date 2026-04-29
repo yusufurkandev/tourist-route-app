@@ -1,16 +1,18 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 export default function Preferences() {
 
   const router = useRouter();
 
+  const params = useLocalSearchParams();
+  const { city } = params;
+
   const [travelType, setTravelType] = useState('');
   const [interest, setInterest] = useState('');
   const [duration, setDuration] = useState('');
 
-  // 1️⃣ KİMİNLE
   const travelOptions = [
     { label: 'Yalnız', icon: '🧍' },
     { label: 'Eş/Sevgili', icon: '❤️' },
@@ -18,7 +20,6 @@ export default function Preferences() {
     { label: 'Arkadaş', icon: '👥' },
   ];
 
-  // 2️⃣ İLGİ ALANI (YENİ)
   const interestOptions = [
     { label: 'Tarihi Yerler', icon: '🏛️' },
     { label: 'Doğa', icon: '🌳' },
@@ -26,7 +27,6 @@ export default function Preferences() {
     { label: 'Yemek & Kafe', icon: '🍽️' },
   ];
 
-  // 3️⃣ SÜRE
   const durationOptions = [
     { label: 'Yarım Gün', icon: '⏰' },
     { label: '1 Gün', icon: '🌞' },
@@ -37,15 +37,24 @@ export default function Preferences() {
   return (
     <View style={styles.container}>
 
-      {/* PROGRESS */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '50%' }]} />
-        </View>
-        <Text style={styles.progressText}>Adım 1 / 2</Text>
-      </View>
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
 
-      <View style={styles.content}>
+        {/* PROGRESS */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: '50%' }]} />
+          </View>
+          <Text style={styles.progressText}>Adım 1 / 2</Text>
+        </View>
+
+        {/* ŞEHİR */}
+        <View style={styles.cityContainer}>
+          <Text style={styles.cityLabel}>Seçilen Şehir</Text>
+          <Text style={styles.cityValue}>📍 {city}</Text>
+        </View>
 
         {/* SORU 1 */}
         <View style={styles.card}>
@@ -68,7 +77,7 @@ export default function Preferences() {
           </View>
         </View>
 
-        {/* SORU 2 (YENİ) */}
+        {/* SORU 2 */}
         <View style={styles.card}>
           <Text style={styles.title}>İlgi alanın nedir?</Text>
 
@@ -110,29 +119,30 @@ export default function Preferences() {
           </View>
         </View>
 
-      </View>
+        {/* BUTON (SCROLL İÇİNDE) */}
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => {
+            if (!city || !travelType || !interest || !duration) {
+              alert("Lütfen tüm seçimleri yapın");
+              return;
+            }
 
-      {/* BUTON */}
-      <TouchableOpacity 
-        style={styles.button}
-        onPress={() => {
-          if (!travelType || !interest || !duration) {
-            alert("Lütfen tüm seçimleri yapın");
-            return;
-          }
+            router.push({
+              pathname: '/preferences2',
+              params: {
+                city,
+                travelType,
+                interest,
+                duration,
+              },
+            });
+          }}
+        >
+          <Text style={styles.buttonText}>Sonraki Adım</Text>
+        </TouchableOpacity>
 
-          router.push({
-            pathname: '/preferences2',
-            params: {
-              travelType,
-              interest,
-              duration,
-            },
-          });
-        }}
-      >
-        <Text style={styles.buttonText}>Sonraki Adım</Text>
-      </TouchableOpacity>
+      </ScrollView>
 
     </View>
   );
@@ -141,8 +151,11 @@ export default function Preferences() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#f2f4f7',
+  },
+
+  content: {
+    padding: 20,
   },
 
   progressContainer: {
@@ -167,9 +180,25 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 
-  content: {
-    flex: 1,
-    justifyContent: 'center',
+  cityContainer: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+    marginBottom: 15,
+    alignItems: 'center',
+    elevation: 3,
+  },
+
+  cityLabel: {
+    fontSize: 12,
+    color: '#777',
+  },
+
+  cityValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#00a884',
   },
 
   card: {
@@ -213,6 +242,8 @@ const styles = StyleSheet.create({
   },
 
   button: {
+    marginTop: 20,
+    marginBottom: 30,
     backgroundColor: '#00a884',
     padding: 15,
     borderRadius: 12,
