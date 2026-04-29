@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 export default function City() {
@@ -12,10 +12,13 @@ export default function City() {
     "Bursa",
     "Adana",
     "Gaziantep",
+    "Trabzon",
+    "Konya",
+    "Kayseri",
   ];
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Şehir Seç</Text>
 
       {cities.map((city, index) => (
@@ -25,15 +28,15 @@ export default function City() {
           onPress={() =>
             router.push({
               pathname: '/preferences',
-              params: { city } // 🔥 EN ÖNEMLİ SATIR
+              params: { city },
             })
           }
         >
           <Text style={styles.cityText}>{city}</Text>
-          <Text style={styles.subtitle}>Rota oluşturmak için tıkla</Text>
+          <Text style={styles.subtitle}>Rotaları keşfet</Text>
         </TouchableOpacity>
       ))}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -43,33 +46,23 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#f5f5f5',
   },
-
   title: {
     fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
   },
-
   card: {
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 12,
     marginBottom: 15,
-
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-
     elevation: 4,
   },
-
   cityText: {
     fontSize: 18,
     fontWeight: 'bold',
   },
-
   subtitle: {
     marginTop: 5,
     color: '#777',

@@ -1,12 +1,12 @@
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   getPlacesByCity, 
   filterByInterest, 
   sortByDistance,
   scorePlaces,
   selectTopPlaces,
-  buildRoute // 🔥 EKLENDİ
+  buildRoute
 } from '../utils/algorithm';
 
 // 📍 ŞEHİR KOORDİNATLARI
@@ -23,6 +23,7 @@ const cityCoords: any = {
 export default function RouteScreen() {
 
   const params = useLocalSearchParams();
+  const router = useRouter();
 
   const city = typeof params.city === 'string' ? params.city : "Istanbul";
   const interest = typeof params.interest === 'string' ? params.interest : "";
@@ -32,35 +33,27 @@ export default function RouteScreen() {
 
   const density = parseInt(params.density as string) || 5;
 
-  // 🔥 1. şehir
+  // 🔥 ALGORİTMA AKIŞI
   const cityPlaces = getPlacesByCity(city);
 
-  // 🔥 2. kategori
   const filteredPlaces = interest
     ? filterByInterest(cityPlaces, interest)
     : cityPlaces;
 
-  // 🔥 3. konum
   const userLat = cityCoords[city]?.lat || 41.0082;
   const userLon = cityCoords[city]?.lon || 28.9784;
 
-  // 🔥 4. mesafe
   const sortedPlaces = sortByDistance(filteredPlaces, userLat, userLon);
 
-  // 🔥 5. skor
   const scoredPlaces = scorePlaces(sortedPlaces, {
     duration,
     budget,
     transport
   });
 
-  // 🔥 6. limit
   const finalPlaces = selectTopPlaces(scoredPlaces, density);
 
-  // 🔥 7. GERÇEK ROTA
   const routePlaces = buildRoute(finalPlaces, userLat, userLon);
-
-  console.log("FINAL LENGTH:", routePlaces.length);
 
   return (
     <View style={styles.container}>
@@ -71,12 +64,11 @@ export default function RouteScreen() {
       </Text>
 
       <FlatList
-        data={routePlaces} // 🔥 ARTIK BU
+        data={routePlaces}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item, index }) => (
           <View style={styles.card}>
 
-            {/* 🔥 DURAK NUMARASI */}
             <Text style={styles.step}>
               {index + 1}. Durak
             </Text>
@@ -84,10 +76,29 @@ export default function RouteScreen() {
             <Text style={styles.name}>{item.name}</Text>
             <Text>{item.category}</Text>
             <Text>{item.duration}</Text>
-
             <Text>⭐ Skor: {String(item.score)}</Text>
+
           </View>
         )}
+
+        // 🔥 BUTON BURAYA EKLENİYOR
+        ListFooterComponent={
+          <TouchableOpacity
+            style={styles.mapButton}
+            onPress={() => {
+              router.push({
+                pathname: '/map',
+                params: {
+                  route: JSON.stringify(routePlaces)
+                }
+              });
+            }}
+          >
+            <Text style={styles.mapButtonText}>
+              Haritada Göster
+            </Text>
+          </TouchableOpacity>
+        }
       />
 
     </View>
@@ -130,5 +141,20 @@ const styles = StyleSheet.create({
   name: {
     fontWeight: 'bold',
     fontSize: 16,
+  },
+
+  // 🔥 MAP BUTON
+  mapButton: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 12,
+    marginTop: 20,
+    marginBottom: 40,
+  },
+
+  mapButtonText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: 'bold',
   },
 });
