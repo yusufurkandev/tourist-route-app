@@ -6,11 +6,11 @@ export default function Preferences2() {
 
   const router = useRouter();
 
-  // 🔥 1. SAYFADAN GELEN VERİLER
+  // 🔥 1. SAYFADAN GELENLER
   const params = useLocalSearchParams();
   const { travelType, interest, duration } = params;
 
-  // 🔥 BU SAYFADAKİ SEÇİMLER
+  // 🔥 BU SAYFADAKİLER
   const [transport, setTransport] = useState('');
   const [budget, setBudget] = useState('');
   const [density, setDensity] = useState('');
@@ -27,7 +27,6 @@ export default function Preferences2() {
     { label: 'Yüksek', icon: '💎' },
   ];
 
-  // 🔥 TEMPO YERİNE YOĞUNLUK
   const densityOptions = [
     { label: 'Az (2-3 yer)', icon: '🐢' },
     { label: 'Orta (4-6 yer)', icon: '🚶' },
@@ -122,20 +121,19 @@ export default function Preferences2() {
             return;
           }
 
-          // 🔥 TÜM VERİLERİ BİRLEŞTİR
-          const allData = {
-            travelType,
-            interest,
-            duration,
-            transport,
-            budget,
-            density,
-          };
-
-          console.log("KULLANICI VERİLERİ:", allData);
-
-          // 🔥 SONRAKİ ADIM (ROTA)
-          router.push('/route');
+          // 🔥 ROUTE'A TÜM VERİYİ GÖNDER
+          router.push({
+            pathname: '/route',
+            params: {
+              city: "Istanbul", // şimdilik sabit
+              travelType,
+              interest,
+              duration,
+              transport,
+              budget,
+              density,
+            },
+          });
         }}
       >
         <Text style={styles.buttonText}>Rota Oluştur</Text>
