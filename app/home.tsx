@@ -6,11 +6,18 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
-      
-      <View style={styles.header}>
-        <Text style={styles.title}>Tourist Route Planner</Text>
+
+      <View style={styles.topSection}>
+        <Text style={styles.title}>Şehri Keşfet</Text>
         <Text style={styles.subtitle}>
-          Discover the best routes tailored just for you
+          Sana özel en iyi gezi rotalarını oluştur
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Akıllı Rota Planlama</Text>
+        <Text style={styles.cardText}>
+          Tercihlerine, zamanına ve ulaşım şekline göre en uygun rotayı oluştururuz.
         </Text>
       </View>
 
@@ -18,7 +25,7 @@ export default function Home() {
         style={styles.button}
         onPress={() => router.push('/city')}
       >
-        <Text style={styles.buttonText}>Start Planning</Text>
+        <Text style={styles.buttonText}>Planlamaya Başla</Text>
       </TouchableOpacity>
 
     </View>
@@ -28,41 +35,62 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: '#f2f4f7',
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
   },
 
-  header: {
+  topSection: {
     marginBottom: 40,
   },
 
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
     textAlign: 'center',
   },
 
   subtitle: {
     fontSize: 16,
-    color: '#777',
+    color: '#666',
     textAlign: 'center',
     marginTop: 10,
+  },
+
+  card: {
+    backgroundColor: '#fff',
+    padding: 25,
+    borderRadius: 16,
+    marginBottom: 40,
+
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
+  },
+
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+
+  cardText: {
+    color: '#777',
+    lineHeight: 20,
   },
 
   button: {
     backgroundColor: '#ff3b3b',
     padding: 18,
-    borderRadius: 12,
-    
-    // shadow iOS
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    borderRadius: 14,
 
-    // shadow Android
-    elevation: 5,
+    shadowColor: '#ff3b3b',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
   },
 
   buttonText: {

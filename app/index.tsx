@@ -13,18 +13,27 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Tourist Route Planner</Text>
 
-      <TextInput
-        placeholder="Enter username"
-        style={styles.input}
-        value={username}
-        onChangeText={setUsername}
-      />
+      <View style={styles.header}>
+        <Text style={styles.title}>Hoş Geldiniz 👋</Text>
+        <Text style={styles.subtitle}>
+            Lütfen kullanıcı adınızı girin ve devam edin
+        </Text>
+      </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
-      </TouchableOpacity>
+      <View style={styles.card}>
+        <TextInput
+          placeholder="Kullanıcı Adınızı Girin"
+          style={styles.input}
+          value={username}
+          onChangeText={setUsername}
+        />
+
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Devam Et</Text>
+        </TouchableOpacity>
+      </View>
+
     </View>
   );
 }
@@ -34,25 +43,58 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
+    backgroundColor: '#f5f5f5',
   },
+
+  header: {
+    marginBottom: 30,
+  },
+
   title: {
-    fontSize: 24,
-    marginBottom: 20,
+    fontSize: 28,
+    fontWeight: 'bold',
     textAlign: 'center',
   },
+
+  subtitle: {
+    fontSize: 15,
+    color: '#777',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+
+  card: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+
+    // shadow iOS
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+
+    // shadow Android
+    elevation: 4,
+  },
+
   input: {
     borderWidth: 1,
+    borderColor: '#ddd',
     padding: 12,
     borderRadius: 8,
     marginBottom: 15,
   },
+
   button: {
     backgroundColor: '#ff3b3b',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: 10,
   },
+
   buttonText: {
     color: '#fff',
     textAlign: 'center',
+    fontWeight: 'bold',
   },
 });
