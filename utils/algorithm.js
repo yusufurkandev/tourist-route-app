@@ -16,9 +16,11 @@ function randomOffset() {
   return (Math.random() - 0.5) * 0.1;
 }
 
-// 🔥 KOORDİNAT EKLE
+// 🔥 KOORDİNAT EKLE (SAFE)
 function addCoordinates(place) {
   const center = cityCenters[place.location];
+
+  if (!center) return place; // 🔥 güvenlik
 
   return {
     ...place,
@@ -65,7 +67,7 @@ export function sortByDistance(placesList, userLat, userLon) {
   });
 }
 
-// 🔥 SKOR ALGORİTMASI (EN KRİTİK)
+// 🔥 SKOR ALGORİTMASI
 export function scorePlaces(placesList, prefs) {
   return placesList.map((place) => {
     let score = 0;
@@ -80,7 +82,7 @@ export function scorePlaces(placesList, prefs) {
       score += 2;
     }
 
-    // 🚗 ulaşım uyumu (basit mantık)
+    // 🚶 ulaşım
     if (prefs.transport === "Yürüyüş" && place.category === "Doğa") {
       score += 1;
     }
@@ -96,9 +98,46 @@ export function scorePlaces(placesList, prefs) {
   });
 }
 
-// 🔥 SON SEÇİM (LIMIT + SORT)
+// 🔥 EN İYİLERİ SEÇ (LIMIT)
 export function selectTopPlaces(scoredPlaces, limit) {
-  return scoredPlaces
+  return [...scoredPlaces]
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+}
+
+// 🔥 🔥 🔥 GERÇEK ROTA OLUŞTUR (EN KRİTİK)
+export function buildRoute(placesList, startLat, startLon) {
+  const route = [];
+  let currentLat = startLat;
+  let currentLon = startLon;
+
+  let remaining = [...placesList];
+
+  while (remaining.length > 0) {
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+
+    remaining.forEach((place, index) => {
+      const dist = calculateDistance(
+        currentLat,
+        currentLon,
+        place.lat,
+        place.lon
+      );
+
+      if (dist < closestDistance) {
+        closestDistance = dist;
+        closestIndex = index;
+      }
+    });
+
+    const nextPlace = remaining.splice(closestIndex, 1)[0];
+
+    route.push(nextPlace);
+
+    currentLat = nextPlace.lat;
+    currentLon = nextPlace.lon;
+  }
+
+  return route;
 }

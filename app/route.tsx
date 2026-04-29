@@ -5,7 +5,8 @@ import {
   filterByInterest, 
   sortByDistance,
   scorePlaces,
-  selectTopPlaces
+  selectTopPlaces,
+  buildRoute // 🔥 EKLENDİ
 } from '../utils/algorithm';
 
 // 📍 ŞEHİR KOORDİNATLARI
@@ -23,46 +24,43 @@ export default function RouteScreen() {
 
   const params = useLocalSearchParams();
 
-  // 🔥 PARAMLARI GÜVENLİ AL
   const city = typeof params.city === 'string' ? params.city : "Istanbul";
   const interest = typeof params.interest === 'string' ? params.interest : "";
   const duration = typeof params.duration === 'string' ? params.duration : "";
   const budget = typeof params.budget === 'string' ? params.budget : "";
   const transport = typeof params.transport === 'string' ? params.transport : "";
 
-  // 🔥 EN KRİTİK FIX (density)
   const density = parseInt(params.density as string) || 5;
 
-  // 🔥 1. şehir filtresi
+  // 🔥 1. şehir
   const cityPlaces = getPlacesByCity(city);
 
-  // 🔥 2. kategori filtresi
+  // 🔥 2. kategori
   const filteredPlaces = interest
     ? filterByInterest(cityPlaces, interest)
     : cityPlaces;
 
-  // 🔥 3. kullanıcı konumu
+  // 🔥 3. konum
   const userLat = cityCoords[city]?.lat || 41.0082;
   const userLon = cityCoords[city]?.lon || 28.9784;
 
-  // 🔥 4. mesafe sıralama
+  // 🔥 4. mesafe
   const sortedPlaces = sortByDistance(filteredPlaces, userLat, userLon);
 
-  // 🔥 5. SKOR
+  // 🔥 5. skor
   const scoredPlaces = scorePlaces(sortedPlaces, {
     duration,
     budget,
     transport
   });
 
-  // 🔥 6. LIMIT
+  // 🔥 6. limit
   const finalPlaces = selectTopPlaces(scoredPlaces, density);
 
-  // 🔥 DEBUG
-  console.log("CITY:", city);
-  console.log("DENSITY RAW:", params.density);
-  console.log("DENSITY PARSED:", density);
-  console.log("FINAL LENGTH:", finalPlaces.length);
+  // 🔥 7. GERÇEK ROTA
+  const routePlaces = buildRoute(finalPlaces, userLat, userLon);
+
+  console.log("FINAL LENGTH:", routePlaces.length);
 
   return (
     <View style={styles.container}>
@@ -73,15 +71,20 @@ export default function RouteScreen() {
       </Text>
 
       <FlatList
-        data={finalPlaces}
+        data={routePlaces} // 🔥 ARTIK BU
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <View style={styles.card}>
+
+            {/* 🔥 DURAK NUMARASI */}
+            <Text style={styles.step}>
+              {index + 1}. Durak
+            </Text>
+
             <Text style={styles.name}>{item.name}</Text>
             <Text>{item.category}</Text>
             <Text>{item.duration}</Text>
 
-            {/* 🔥 TEXT HATASI GARANTİ FIX */}
             <Text>⭐ Skor: {String(item.score)}</Text>
           </View>
         )}
@@ -115,6 +118,13 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 10,
     marginBottom: 10,
+  },
+
+  step: {
+    fontSize: 12,
+    color: '#00a884',
+    marginBottom: 5,
+    fontWeight: 'bold',
   },
 
   name: {
