@@ -33,6 +33,21 @@ type Place = {
   score?: number;
 };
 
+// 🔥 SKOR FORMAT
+function formatScore(score: number | undefined) {
+  if (!score) return "0";
+
+  if (score >= 1000000) {
+    return (score / 1000000).toFixed(1) + "M";
+  }
+
+  if (score >= 1000) {
+    return (score / 1000).toFixed(1) + "K";
+  }
+
+  return score.toFixed(1);
+}
+
 export default function RouteScreen() {
 
   const params = useLocalSearchParams();
@@ -58,72 +73,46 @@ export default function RouteScreen() {
         setPlaces(data);
       })
       .catch(err => console.log("API ERROR:", err));
-  }, []);
+  }, [city]);
 
-  // 🔥 ALGORİTMA (SAFE + FALLBACK)
+  // 🔥 ALGORİTMA
   useEffect(() => {
     if (places.length === 0) return;
-
-    console.log("PLACES:", places);
 
     try {
       let working = places;
 
-      // 1️⃣ FILTER
       const filtered = interest
         ? filterByInterest(working, interest)
         : working;
 
-      console.log("FILTERED:", filtered);
-
-      // ❗ Eğer filtre boşsa fallback
-      if (filtered.length === 0) {
-        console.log("FILTER EMPTY → fallback to ALL");
-        working = places;
-      } else {
+      if (filtered.length > 0) {
         working = filtered;
       }
 
-      // 2️⃣ SORT
       const userLat = cityCoords[city]?.lat || 41.0082;
       const userLon = cityCoords[city]?.lon || 28.9784;
 
       const sorted = sortByDistance(working, userLat, userLon);
-      console.log("SORTED:", sorted);
 
-      // 3️⃣ SCORE
       const scored = scorePlaces(sorted, {
         duration,
         budget,
         transport
       });
 
-      console.log("SCORED:", scored);
-
-      // 4️⃣ LIMIT (SAFE)
       const finalPlaces =
         scored.length > 0
-          ? scored.slice(0, density)
+          ? selectTopPlaces(scored, density)
           : sorted.slice(0, density);
 
-      console.log("FINAL:", finalPlaces);
-
-      // 5️⃣ ROUTE
       const route = buildRoute(finalPlaces, userLat, userLon);
 
-      console.log("ROUTE:", route);
-
-      // ❗ Eğer route boşsa fallback
-      if (route.length === 0) {
-        console.log("ROUTE EMPTY → fallback direct list");
-        setRoutePlaces(finalPlaces);
-      } else {
-        setRoutePlaces(route);
-      }
+      setRoutePlaces(route.length > 0 ? route : finalPlaces);
 
     } catch (err) {
       console.log("ALGORITHM ERROR:", err);
-      setRoutePlaces(places); // fallback
+      setRoutePlaces(places);
     }
 
   }, [places]);
@@ -162,7 +151,7 @@ export default function RouteScreen() {
             <Text style={styles.name}>{item.name}</Text>
             <Text>{item.category}</Text>
             <Text>{item.duration} dk</Text>
-            <Text>⭐ Skor: {item.score ?? "-"}</Text>
+            <Text>⭐ Skor: {formatScore(item.score)}</Text>
           </View>
         )}
 
