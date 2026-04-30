@@ -2,6 +2,7 @@ import { View, StyleSheet, TouchableOpacity, Text, Linking } from 'react-native'
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import * as Location from 'expo-location';
 
 export default function MapScreen() {
 
@@ -14,9 +15,11 @@ export default function MapScreen() {
     parseInt(params.currentDay as string) || 0
   );
 
+  const [userLocation, setUserLocation] = useState<any>(null);
+
   let days: any[][] = [];
 
-  // 🔥 JSON PARSE (GÜNLER)
+  // 🔥 JSON PARSE
   try {
     days = params.days ? JSON.parse(params.days as string) : [];
   } catch (e) {
@@ -25,17 +28,45 @@ export default function MapScreen() {
 
   const routePlaces = days[currentDay] || [];
 
-  console.log("CURRENT DAY:", currentDay);
-  console.log("ROUTE:", routePlaces);
-
-  // 🔥 AUTO ZOOM
+  // 🔥 KULLANICI KONUMU AL
   useEffect(() => {
-    if (routePlaces.length > 0 && mapRef.current) {
-      const coords = routePlaces.map((p) => ({
-        latitude: p.lat,
-        longitude: p.lng
-      }));
 
+    const getLocation = async () => {
+
+      let { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') return;
+
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation
+      });
+
+      setUserLocation(location.coords);
+    };
+
+    getLocation();
+
+  }, []);
+
+  // 🔥 AUTO ZOOM (ROTA + USER)
+  useEffect(() => {
+
+    if (!mapRef.current) return;
+
+    const coords = routePlaces.map((p) => ({
+      latitude: p.lat,
+      longitude: p.lng
+    }));
+
+    // kullanıcı varsa ekle
+    if (userLocation) {
+      coords.push({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude
+      });
+    }
+
+    if (coords.length > 0) {
       mapRef.current.fitToCoordinates(coords, {
         edgePadding: {
           top: 80,
@@ -46,10 +77,12 @@ export default function MapScreen() {
         animated: true
       });
     }
-  }, [routePlaces]);
+
+  }, [routePlaces, userLocation]);
 
   // 🔥 GOOGLE MAPS
   const openInMaps = () => {
+
     if (routePlaces.length === 0) return;
 
     const origin = `${routePlaces[0].lat},${routePlaces[0].lng}`;
@@ -84,7 +117,6 @@ export default function MapScreen() {
   return (
     <View style={styles.container}>
 
-      {/* 🔥 GÜN BAŞLIK */}
       <Text style={styles.dayTitle}>
         Gün {currentDay + 1}
       </Text>
@@ -100,7 +132,19 @@ export default function MapScreen() {
         }}
       >
 
-        {/* 📍 MARKER */}
+        {/* 🔥 SEN BURADASIN */}
+        {userLocation && (
+          <Marker
+            coordinate={{
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude
+            }}
+            title="Sen burdasın"
+            pinColor="blue"
+          />
+        )}
+
+        {/* 📍 ROTA NOKTALARI */}
         {routePlaces.map((place, index) => (
           <Marker
             key={index}
@@ -123,14 +167,12 @@ export default function MapScreen() {
 
       </MapView>
 
-      {/* 🔥 GOOGLE MAPS */}
       <TouchableOpacity style={styles.mapsButton} onPress={openInMaps}>
         <Text style={styles.mapsButtonText}>
           Google Maps'te Aç
         </Text>
       </TouchableOpacity>
 
-      {/* 🔥 SONRAKİ GÜN */}
       {currentDay < days.length - 1 && (
         <TouchableOpacity style={styles.nextButton} onPress={nextDay}>
           <Text style={styles.mapsButtonText}>

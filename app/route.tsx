@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
+import * as Location from 'expo-location';
 
 import {
   filterByInterest,
@@ -11,16 +12,6 @@ import {
   splitIntoDaysSmart
 } from '../utils/algorithm';
 
-const cityCoords: Record<string, { lat: number; lon: number }> = {
-  Istanbul: { lat: 41.0082, lon: 28.9784 },
-  Ankara: { lat: 39.9334, lon: 32.8597 },
-  Izmir: { lat: 38.4237, lon: 27.1428 },
-  Antalya: { lat: 36.8969, lon: 30.7133 },
-  Bursa: { lat: 40.1885, lon: 29.0610 },
-  Adana: { lat: 37.0, lon: 35.3213 },
-  Gaziantep: { lat: 37.0662, lon: 37.3833 },
-};
-
 export default function RouteScreen() {
 
   const params = useLocalSearchParams();
@@ -28,6 +19,7 @@ export default function RouteScreen() {
 
   const [places, setPlaces] = useState<any[]>([]);
   const [days, setDays] = useState<any[][]>([]);
+  const [userLocation, setUserLocation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const city = params.city as string;
@@ -38,29 +30,50 @@ export default function RouteScreen() {
 
   const density = parseInt(params.density as string) || 5;
 
+  // 🔥 KONUM (FINAL)
+  useEffect(() => {
+
+    const getLocation = async () => {
+
+      let { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        console.log("Konum izni reddedildi");
+        return;
+      }
+
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+      });
+
+      console.log("USER LOCATION:", location.coords);
+
+      setUserLocation(location.coords);
+    };
+
+    getLocation();
+
+  }, []);
+
   // 🔥 API
   useEffect(() => {
-    setLoading(true);
-
     fetch(`http://192.168.1.130:5000/places?city=${city}`)
       .then(res => res.json())
-      .then(data => {
-        setPlaces(data);
-      })
+      .then(data => setPlaces(data))
       .catch(err => console.log(err));
   }, [city]);
 
   // 🔥 ALGORİTMA
   useEffect(() => {
 
-    if (!places || places.length === 0) return;
+    if (!places.length || !userLocation) return;
 
     const filtered = interest
       ? filterByInterest(places, interest)
       : places;
 
-    const userLat = cityCoords[city]?.lat || 41;
-    const userLon = cityCoords[city]?.lon || 29;
+    const userLat = userLocation.latitude;
+    const userLon = userLocation.longitude;
 
     const sorted = sortByDistance(filtered, userLat, userLon);
 
@@ -75,22 +88,18 @@ export default function RouteScreen() {
 
     const route = buildRoute(selected, userLat, userLon);
 
-    // 🔥 GÜN SAYISI
     let totalDays = 1;
     if (duration === "2 Gün") totalDays = 2;
     if (duration === "3 Gün") totalDays = 3;
 
     let splitted = splitIntoDaysSmart(route, totalDays);
 
-    // 🔥 EMPTY DAY FIX
     splitted = splitted.filter(day => day.length > 0);
-
-    console.log("FINAL DAYS:", splitted);
 
     setDays(splitted);
     setLoading(false);
 
-  }, [places]);
+  }, [places, userLocation]);
 
   if (loading || days.length === 0) {
     return (
@@ -125,24 +134,15 @@ export default function RouteScreen() {
               <Text style={styles.category}>
                 {place.categories?.join(", ")}
               </Text>
-
-              {/* 🔥 distance debug (istersen kaldır) */}
-              {place.distance && (
-                <Text style={styles.distance}>
-                  {place.distance.toFixed(2)} km
-                </Text>
-              )}
             </View>
           ))}
 
         </View>
       ))}
 
-      {/* 🔥 GEZİ BAŞLAT */}
       <TouchableOpacity
         style={styles.mapButton}
         onPress={() => {
-
           router.push({
             pathname: '/map',
             params: {
@@ -151,7 +151,6 @@ export default function RouteScreen() {
               transport: transport
             }
           });
-
         }}
       >
         <Text style={styles.mapButtonText}>
@@ -206,12 +205,6 @@ const styles = StyleSheet.create({
   category: {
     color: '#555',
     marginTop: 4,
-  },
-
-  distance: {
-    marginTop: 5,
-    fontSize: 12,
-    color: '#999'
   },
 
   mapButton: {
