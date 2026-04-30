@@ -167,7 +167,8 @@ export default function RouteScreen() {
               router.push({
                 pathname: '/map',
                 params: {
-                  route: JSON.stringify(routePlaces)
+                  route: JSON.stringify(routePlaces),
+                  transport: transport
                 }
               });
             }}

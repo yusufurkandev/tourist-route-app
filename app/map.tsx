@@ -10,6 +10,9 @@ export default function MapScreen() {
 
   let routePlaces: any[] = [];
 
+  // 🔥 transport al
+  const transport = params.transport as string;
+
   // 🔥 JSON PARSE
   try {
     routePlaces = params.route
@@ -20,6 +23,7 @@ export default function MapScreen() {
   }
 
   console.log("MAP DATA:", routePlaces);
+  console.log("TRANSPORT:", transport);
 
   // 🔥 AUTO ZOOM
   useEffect(() => {
@@ -41,7 +45,7 @@ export default function MapScreen() {
     }
   }, [routePlaces]);
 
-  // 🔥 GOOGLE MAPS AÇ
+  // 🔥 GOOGLE MAPS AÇ (DİNAMİK MODE)
   const openInMaps = () => {
     if (routePlaces.length === 0) return;
 
@@ -53,7 +57,16 @@ export default function MapScreen() {
       .map(p => `${p.lat},${p.lng}`)
       .join('|');
 
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`;
+    // 🔥 MODE SEÇİMİ
+    let travelMode = "driving";
+
+    if (transport === "Yürüyüş") travelMode = "walking";
+    else if (transport === "Toplu Taşıma") travelMode = "transit";
+    else if (transport === "Araba") travelMode = "driving";
+
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=${travelMode}`;
+
+    console.log("MAP URL:", url);
 
     Linking.openURL(url);
   };

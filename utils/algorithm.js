@@ -45,9 +45,24 @@ export function sortByDistance(placesList, userLat, userLon) {
   });
 }
 
-// 🔥 🔥 EN KRİTİK: AKILLI SKOR (YÜRÜYÜŞ FIX)
+// 🔥 🔥 AKILLI SKOR (3 MOD DESTEK)
 export function scorePlaces(placesList, prefs, userLat, userLon) {
+
+  // 🔥 MODA GÖRE FİLTRE
+  if (prefs.transport === "Yürüyüş") {
+    placesList = placesList.filter(p =>
+      calculateDistance(userLat, userLon, p.lat, p.lng) < 5
+    );
+  }
+
+  if (prefs.transport === "Toplu Taşıma") {
+    placesList = placesList.filter(p =>
+      calculateDistance(userLat, userLon, p.lat, p.lng) < 15
+    );
+  }
+
   return placesList.map((place) => {
+
     let score = 0;
 
     const distance = calculateDistance(
@@ -57,15 +72,24 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
       place.lng
     );
 
-    // 🚶 YÜRÜYÜŞ MODU
+    // 🚶 YÜRÜYÜŞ
     if (prefs.transport === "Yürüyüş") {
-      if (distance < 1) score += 6;        // çok yakın
-      else if (distance < 3) score += 4;   // yakın
-      else if (distance < 5) score += 1;   // idare eder
-      else score -= 6;                     // uzaksa sert ceza
+      if (distance < 1) score += 6;
+      else if (distance < 3) score += 4;
+      else if (distance < 5) score += 1;
+      else score -= 6;
     }
 
-    // 🚗 ARABA MODU
+    // 🚌 TOPLU TAŞIMA
+    if (prefs.transport === "Toplu Taşıma") {
+      if (distance < 1) score += 1;
+      else if (distance < 5) score += 4;
+      else if (distance < 10) score += 3;
+      else if (distance < 15) score += 2;
+      else score -= 3;
+    }
+
+    // 🚗 ARABA
     if (prefs.transport === "Araba") {
       if (distance < 2) score += 1;
       else if (distance < 10) score += 3;
@@ -92,7 +116,7 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
     return {
       ...place,
       score,
-      distance // debug için
+      distance
     };
   });
 }
