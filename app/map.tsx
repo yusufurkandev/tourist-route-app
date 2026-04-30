@@ -1,141 +1,109 @@
 import { View, StyleSheet, TouchableOpacity, Text, Linking } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useLocalSearchParams } from 'expo-router';
-import { useRef, useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function MapScreen() {
 
   const params = useLocalSearchParams();
-  const routePlaces = JSON.parse(params.route as string);
-
   const mapRef = useRef<MapView>(null);
-  const [selectedPlace, setSelectedPlace] = useState<any>(null);
+
+  let routePlaces: any[] = [];
+
+  // 🔥 JSON PARSE
+  try {
+    routePlaces = params.route
+      ? JSON.parse(params.route as string)
+      : [];
+  } catch (e) {
+    console.log("JSON PARSE ERROR:", e);
+  }
+
+  console.log("MAP DATA:", routePlaces);
 
   // 🔥 AUTO ZOOM
   useEffect(() => {
-    if (mapRef.current && routePlaces.length > 0) {
-      mapRef.current.fitToCoordinates(
-        routePlaces.map((p: any) => ({
-          latitude: p.lat,
-          longitude: p.lon,
-        })),
-        {
-          edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
-          animated: true,
-        }
-      );
+    if (routePlaces.length > 0 && mapRef.current) {
+      const coords = routePlaces.map((p) => ({
+        latitude: p.lat,
+        longitude: p.lng
+      }));
+
+      mapRef.current.fitToCoordinates(coords, {
+        edgePadding: {
+          top: 80,
+          right: 80,
+          bottom: 80,
+          left: 80
+        },
+        animated: true
+      });
     }
-  }, []);
+  }, [routePlaces]);
 
-  // 📍 TEK NOKTA NAV
-  const openNavigation = (lat: number, lon: number) => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
-    Linking.openURL(url);
-  };
+  // 🔥 GOOGLE MAPS AÇ
+  const openInMaps = () => {
+    if (routePlaces.length === 0) return;
 
-  // 🗺️ FULL ROTA
-  const openFullRoute = () => {
-    if (routePlaces.length < 2) return;
-
-    const origin = `${routePlaces[0].lat},${routePlaces[0].lon}`;
-    const destination = `${routePlaces[routePlaces.length - 1].lat},${routePlaces[routePlaces.length - 1].lon}`;
+    const origin = `${routePlaces[0].lat},${routePlaces[0].lng}`;
+    const destination = `${routePlaces[routePlaces.length - 1].lat},${routePlaces[routePlaces.length - 1].lng}`;
 
     const waypoints = routePlaces
       .slice(1, -1)
-      .map((p: any) => `${p.lat},${p.lon}`)
+      .map(p => `${p.lat},${p.lng}`)
       .join('|');
 
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving&waypoints=${waypoints}`;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`;
 
     Linking.openURL(url);
   };
 
+  if (routePlaces.length === 0) {
+    return <View style={styles.container} />;
+  }
+
   return (
     <View style={styles.container}>
-      
-      <MapView ref={mapRef} style={styles.map}>
+
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        initialRegion={{
+          latitude: routePlaces[0].lat,
+          longitude: routePlaces[0].lng,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+      >
 
         {/* 📍 MARKER */}
-        {routePlaces.map((place: any, index: number) => {
+        {routePlaces.map((place, index) => (
+          <Marker
+            key={index}
+            coordinate={{
+              latitude: place.lat,
+              longitude: place.lng
+            }}
+            title={`${index + 1}. ${place.name}`}
+          />
+        ))}
 
-          const isStart = index === 0;
-          const isEnd = index === routePlaces.length - 1;
-
-          return (
-            <Marker
-              key={index}
-              coordinate={{
-                latitude: place.lat,
-                longitude: place.lon,
-              }}
-              onPress={() => setSelectedPlace(place)} // 🔥 ARTIK BURASI
-            >
-              <View style={styles.markerWrapper}>
-                
-                <View style={[
-                  styles.marker,
-                  isStart && styles.startMarker,
-                  isEnd && styles.endMarker
-                ]}>
-                  <Text style={styles.markerText}>
-                    {index + 1}
-                  </Text>
-                </View>
-
-                <View style={[
-                  styles.markerArrow,
-                  isStart && styles.startArrow,
-                  isEnd && styles.endArrow
-                ]} />
-
-              </View>
-            </Marker>
-          );
-        })}
-
-        {/* 🔵 ROTA */}
+        {/* 🔥 ROTA */}
         <Polyline
-          coordinates={routePlaces.map((p: any) => ({
+          coordinates={routePlaces.map((p) => ({
             latitude: p.lat,
-            longitude: p.lon,
+            longitude: p.lng
           }))}
-          strokeColor="#007AFF"
-          strokeWidth={5}
+          strokeWidth={4}
         />
 
       </MapView>
 
-      {/* 🔥 ALT KART */}
-      {selectedPlace && (
-        <View style={styles.bottomCard}>
-          
-          <Text style={styles.cardTitle}>
-            {selectedPlace.name}
-          </Text>
-
-          <Text style={styles.cardText}>
-            📍 {selectedPlace.category}
-          </Text>
-
-          <Text style={styles.cardText}>
-            ⏱️ {selectedPlace.duration}
-          </Text>
-
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => openNavigation(selectedPlace.lat, selectedPlace.lon)}
-          >
-            <Text style={styles.navButtonText}>
-              Navigasyona Git
-            </Text>
-          </TouchableOpacity>
-
-        </View>
-      )}
-
-      {/* 🔥 FULL ROTA BUTON */}
-      <TouchableOpacity style={styles.routeButton} onPress={openFullRoute}>
-        <Text style={styles.routeButtonText}>Tüm Rotayı Aç</Text>
+      {/* 🔥 GOOGLE MAPS BUTON */}
+      <TouchableOpacity style={styles.mapsButton} onPress={openInMaps}>
+        <Text style={styles.mapsButtonText}>
+          Google Maps'te Aç
+        </Text>
       </TouchableOpacity>
 
     </View>
@@ -143,92 +111,24 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  map: { flex: 1 },
-
-  markerWrapper: {
-    alignItems: 'center',
+  container: {
+    flex: 1,
+  },
+  map: {
+    flex: 1,
   },
 
-  marker: {
-    backgroundColor: '#007AFF',
-    padding: 10,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#fff',
-    elevation: 5,
-  },
-
-  markerText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-
-  markerArrow: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 10,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: '#007AFF',
-  },
-
-  startMarker: { backgroundColor: '#34C759' },
-  startArrow: { borderTopColor: '#34C759' },
-
-  endMarker: { backgroundColor: '#FF3B30' },
-  endArrow: { borderTopColor: '#FF3B30' },
-
-  // 🔥 ALT KART
-  bottomCard: {
+  mapsButton: {
     position: 'absolute',
-    bottom: 90,
-    left: 15,
-    right: 15,
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 15,
-    elevation: 8,
-  },
-
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-
-  cardText: {
-    color: '#666',
-    marginBottom: 3,
-  },
-
-  navButton: {
-    marginTop: 10,
-    backgroundColor: '#007AFF',
-    padding: 10,
-    borderRadius: 10,
-  },
-
-  navButtonText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-
-  routeButton: {
-    position: 'absolute',
-    bottom: 30,
+    bottom: 40,
     left: 20,
     right: 20,
-    backgroundColor: '#34C759',
+    backgroundColor: '#34A853',
     padding: 15,
     borderRadius: 12,
   },
 
-  routeButtonText: {
+  mapsButtonText: {
     color: '#fff',
     textAlign: 'center',
     fontWeight: 'bold',
