@@ -1,50 +1,29 @@
-import { places } from "../data/places";
+//
+// ❗ ARTIK DIŞ DATA IMPORT YOK
+//
 
-// 📍 ŞEHİR MERKEZLERİ
-const cityCenters = {
-  Istanbul: { lat: 41.0082, lon: 28.9784 },
-  Ankara: { lat: 39.9334, lon: 32.8597 },
-  Izmir: { lat: 38.4237, lon: 27.1428 },
-  Antalya: { lat: 36.8969, lon: 30.7133 },
-  Bursa: { lat: 40.1885, lon: 29.0610 },
-  Adana: { lat: 37.0000, lon: 35.3213 },
-  Gaziantep: { lat: 37.0662, lon: 37.3833 },
+// 🔥 KATEGORİ MAP (TR → EN)
+const categoryMap = {
+  Doğa: "nature",
+  Tarih: "history",
+  Alışveriş: "shopping",
 };
 
-// 🎲 RANDOM KOORDİNAT
-function randomOffset() {
-  return (Math.random() - 0.5) * 0.1;
-}
-
-// 🔥 KOORDİNAT EKLE (SAFE)
-function addCoordinates(place) {
-  const center = cityCenters[place.location];
-
-  if (!center) return place; // 🔥 güvenlik
-
-  return {
-    ...place,
-    lat: center.lat + randomOffset(),
-    lon: center.lon + randomOffset(),
-  };
-}
-
-// 🔥 ŞEHİR FİLTRE
-export function getPlacesByCity(city) {
-  return places
-    .filter((place) => place.location === city)
-    .map(addCoordinates);
-}
-
-// 🔥 KATEGORİ FİLTRE
+// 🔥 KATEGORİ FİLTRE (FIX)
 export function filterByInterest(placesList, interest) {
   if (!interest) return placesList;
-  return placesList.filter((place) => place.category === interest);
+
+  const mapped = categoryMap[interest] || interest;
+
+  return placesList.filter(
+    (place) => place.category?.toLowerCase() === mapped.toLowerCase()
+  );
 }
 
 // 🔥 MESAFE HESAPLA
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
+
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
 
@@ -58,38 +37,41 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// 🔥 MESAFEYE GÖRE SIRALA
+// 🔥 MESAFEYE GÖRE SIRALA (lng FIX)
 export function sortByDistance(placesList, userLat, userLon) {
   return [...placesList].sort((a, b) => {
-    const distA = calculateDistance(userLat, userLon, a.lat, a.lon);
-    const distB = calculateDistance(userLat, userLon, b.lat, b.lon);
+    const distA = calculateDistance(userLat, userLon, a.lat, a.lng);
+    const distB = calculateDistance(userLat, userLon, b.lat, b.lng);
     return distA - distB;
   });
 }
 
-// 🔥 SKOR ALGORİTMASI
+// 🔥 SKOR (cost FIX)
 export function scorePlaces(placesList, prefs) {
   return placesList.map((place) => {
     let score = 0;
 
-    // 🎯 süre uyumu
-    if (prefs.duration && place.duration === prefs.duration) {
-      score += 3;
-    }
-
-    // 💰 bütçe uyumu
-    if (prefs.budget && place.price === prefs.budget) {
+    // süre
+    if (prefs.duration && place.duration <= parseInt(prefs.duration)) {
       score += 2;
     }
 
-    // 🚶 ulaşım
-    if (prefs.transport === "Yürüyüş" && place.category === "Doğa") {
+    // bütçe
+    if (prefs.budget && place.cost <= parseInt(prefs.budget)) {
+      score += 2;
+    }
+
+    // ulaşım
+    if (prefs.transport === "Yürüyüş" && place.category === "nature") {
       score += 1;
     }
 
     if (prefs.transport === "Araba") {
       score += 1;
     }
+
+    // popülerlik bonusu
+    score += place.popularity || 0;
 
     return {
       ...place,
@@ -98,14 +80,14 @@ export function scorePlaces(placesList, prefs) {
   });
 }
 
-// 🔥 EN İYİLERİ SEÇ (LIMIT)
+// 🔥 TOP SELECTION
 export function selectTopPlaces(scoredPlaces, limit) {
   return [...scoredPlaces]
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, limit);
 }
 
-// 🔥 🔥 🔥 GERÇEK ROTA OLUŞTUR (EN KRİTİK)
+// 🔥 ROUTE (lng FIX)
 export function buildRoute(placesList, startLat, startLon) {
   const route = [];
   let currentLat = startLat;
@@ -122,7 +104,7 @@ export function buildRoute(placesList, startLat, startLon) {
         currentLat,
         currentLon,
         place.lat,
-        place.lon
+        place.lng
       );
 
       if (dist < closestDistance) {
@@ -136,7 +118,7 @@ export function buildRoute(placesList, startLat, startLon) {
     route.push(nextPlace);
 
     currentLat = nextPlace.lat;
-    currentLon = nextPlace.lon;
+    currentLon = nextPlace.lng;
   }
 
   return route;
