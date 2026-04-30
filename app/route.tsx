@@ -1,13 +1,14 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
-import { 
-  filterByInterest, 
+import {
+  filterByInterest,
   sortByDistance,
   scorePlaces,
   selectTopPlaces,
-  buildRoute
+  buildRoute,
+  splitIntoDaysByCount
 } from '../utils/algorithm';
 
 const cityCoords: Record<string, { lat: number; lon: number }> = {
@@ -20,167 +21,125 @@ const cityCoords: Record<string, { lat: number; lon: number }> = {
   Gaziantep: { lat: 37.0662, lon: 37.3833 },
 };
 
-type Place = {
-  id: number;
-  name: string;
-  city: string;
-  lat: number;
-  lng: number;
-  category: string;
-  duration: number;
-  cost: number;
-  popularity: number;
-  score?: number;
-};
-
-// 🔥 SKOR FORMAT
-function formatScore(score: number | undefined) {
-  if (!score) return "0";
-
-  if (score >= 1000000) {
-    return (score / 1000000).toFixed(1) + "M";
-  }
-
-  if (score >= 1000) {
-    return (score / 1000).toFixed(1) + "K";
-  }
-
-  return score.toFixed(1);
-}
-
 export default function RouteScreen() {
 
   const params = useLocalSearchParams();
   const router = useRouter();
 
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [routePlaces, setRoutePlaces] = useState<Place[]>([]);
+  const [places, setPlaces] = useState<any[]>([]);
+  const [days, setDays] = useState<any[][]>([]);
 
-  const city = typeof params.city === 'string' ? params.city : "Istanbul";
-  const interest = typeof params.interest === 'string' ? params.interest : "";
-  const duration = typeof params.duration === 'string' ? params.duration : "";
-  const budget = typeof params.budget === 'string' ? params.budget : "";
-  const transport = typeof params.transport === 'string' ? params.transport : "";
+  const city = params.city as string;
+  const interest = params.interest as string;
+  const duration = params.duration as string;
+  const budget = params.budget as string;
+  const transport = params.transport as string;
 
-  const density = Number(params.density) > 0 ? Number(params.density) : 5;
+  const density = parseInt(params.density as string) || 5;
 
   // 🔥 API
   useEffect(() => {
     fetch(`http://192.168.1.130:5000/places?city=${city}`)
       .then(res => res.json())
-      .then((data: Place[]) => {
-        console.log("API DATA:", data);
-        setPlaces(data);
-      })
-      .catch(err => console.log("API ERROR:", err));
+      .then(data => setPlaces(data))
+      .catch(err => console.log(err));
   }, [city]);
 
   // 🔥 ALGORİTMA
   useEffect(() => {
-    if (places.length === 0) return;
 
-    try {
-      let working = places;
+    if (!places || places.length === 0) return;
 
-      const filtered = interest
-        ? filterByInterest(working, interest)
-        : working;
+    const filtered = interest
+      ? filterByInterest(places, interest)
+      : places;
 
-      if (filtered.length > 0) {
-        working = filtered;
-      }
+    const userLat = cityCoords[city]?.lat || 41;
+    const userLon = cityCoords[city]?.lon || 29;
 
-      const userLat = cityCoords[city]?.lat || 41.0082;
-      const userLon = cityCoords[city]?.lon || 28.9784;
+    const sorted = sortByDistance(filtered, userLat, userLon);
 
-      const sorted = sortByDistance(working, userLat, userLon);
-
-      const scored = scorePlaces(
-        sorted,
-        {
-          duration,
-          budget,
-          transport
-        },
-        userLat,
-        userLon
+    const scored = scorePlaces(
+      sorted,
+      { duration, budget, transport },
+      userLat,
+      userLon
     );
 
-      const finalPlaces =
-        scored.length > 0
-          ? selectTopPlaces(scored, density)
-          : sorted.slice(0, density);
+    const selected = selectTopPlaces(scored, density);
 
-      const route = buildRoute(finalPlaces, userLat, userLon);
+    const route = buildRoute(selected, userLat, userLon);
 
-      setRoutePlaces(route.length > 0 ? route : finalPlaces);
+    // 🔥 GÜN SAYISI
+    let totalDays = 1;
+    if (duration === "2 Gün") totalDays = 2;
+    if (duration === "3 Gün") totalDays = 3;
 
-    } catch (err) {
-      console.log("ALGORITHM ERROR:", err);
-      setRoutePlaces(places);
-    }
+    const splitted = splitIntoDaysByCount(route, totalDays);
+
+    setDays(splitted);
 
   }, [places]);
 
-  // 🔥 LOADING
-  if (places.length === 0) {
+  if (days.length === 0) {
     return (
       <View style={styles.container}>
-        <Text>Veri çekiliyor...</Text>
-      </View>
-    );
-  }
-
-  if (routePlaces.length === 0) {
-    return (
-      <View style={styles.container}>
-        <Text>Rota oluşturulamadı</Text>
+        <Text>Yükleniyor...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
 
-      <Text style={styles.title}>Önerilen Rota</Text>
-      <Text style={styles.subtitle}>
-        {city} {interest ? `- ${interest}` : ""}
-      </Text>
+      <Text style={styles.title}>Planın Hazır 🎉</Text>
 
-      <FlatList
-        data={routePlaces}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item, index }) => (
-          <View style={styles.card}>
-            <Text style={styles.step}>{index + 1}. Durak</Text>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text>{item.category}</Text>
-            <Text>{item.duration} dk</Text>
-            <Text>⭐ Skor: {formatScore(item.score)}</Text>
-          </View>
-        )}
+      {days.map((day, dayIndex) => (
+        <View key={dayIndex}>
 
-        ListFooterComponent={
-          <TouchableOpacity
-            style={styles.mapButton}
-            onPress={() => {
-              router.push({
-                pathname: '/map',
-                params: {
-                  route: JSON.stringify(routePlaces),
-                  transport: transport
-                }
-              });
-            }}
-          >
-            <Text style={styles.mapButtonText}>
-              Haritada Göster
-            </Text>
-          </TouchableOpacity>
-        }
-      />
+          <Text style={styles.dayTitle}>
+            Gün {dayIndex + 1}
+          </Text>
 
-    </View>
+          {day.map((place, index) => (
+            <View key={index} style={styles.card}>
+              <Text style={styles.step}>
+                {index + 1}. Durak
+              </Text>
+
+              <Text style={styles.name}>
+                {place.name}
+              </Text>
+
+              <Text>{place.categories?.join(", ")}</Text>
+            </View>
+          ))}
+
+        </View>
+      ))}
+
+      {/* 🔥 YENİ BUTON */}
+      <TouchableOpacity
+        style={styles.mapButton}
+        onPress={() => {
+
+          router.push({
+            pathname: '/map',
+            params: {
+              days: JSON.stringify(days),
+              currentDay: 0,
+              transport: transport
+            }
+          });
+
+        }}
+      >
+        <Text style={styles.mapButtonText}>
+          Gezi Başlasın 🚀
+        </Text>
+      </TouchableOpacity>
+
+    </ScrollView>
   );
 }
 
@@ -194,13 +153,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 15,
   },
 
-  subtitle: {
-    fontSize: 16,
-    marginBottom: 20,
-    color: '#666',
+  dayTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 10,
+    color: '#007AFF',
   },
 
   card: {
@@ -226,7 +187,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     padding: 15,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: 30,
     marginBottom: 40,
   },
 

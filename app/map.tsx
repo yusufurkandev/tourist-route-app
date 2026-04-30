@@ -1,29 +1,32 @@
 import { View, StyleSheet, TouchableOpacity, Text, Linking } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function MapScreen() {
 
   const params = useLocalSearchParams();
   const mapRef = useRef<MapView>(null);
 
-  let routePlaces: any[] = [];
-
-  // 🔥 transport al
   const transport = params.transport as string;
 
-  // 🔥 JSON PARSE
+  const [currentDay, setCurrentDay] = useState(
+    parseInt(params.currentDay as string) || 0
+  );
+
+  let days: any[][] = [];
+
+  // 🔥 JSON PARSE (GÜNLER)
   try {
-    routePlaces = params.route
-      ? JSON.parse(params.route as string)
-      : [];
+    days = params.days ? JSON.parse(params.days as string) : [];
   } catch (e) {
     console.log("JSON PARSE ERROR:", e);
   }
 
-  console.log("MAP DATA:", routePlaces);
-  console.log("TRANSPORT:", transport);
+  const routePlaces = days[currentDay] || [];
+
+  console.log("CURRENT DAY:", currentDay);
+  console.log("ROUTE:", routePlaces);
 
   // 🔥 AUTO ZOOM
   useEffect(() => {
@@ -45,7 +48,7 @@ export default function MapScreen() {
     }
   }, [routePlaces]);
 
-  // 🔥 GOOGLE MAPS AÇ (DİNAMİK MODE)
+  // 🔥 GOOGLE MAPS
   const openInMaps = () => {
     if (routePlaces.length === 0) return;
 
@@ -57,18 +60,21 @@ export default function MapScreen() {
       .map(p => `${p.lat},${p.lng}`)
       .join('|');
 
-    // 🔥 MODE SEÇİMİ
     let travelMode = "driving";
 
     if (transport === "Yürüyüş") travelMode = "walking";
     else if (transport === "Toplu Taşıma") travelMode = "transit";
-    else if (transport === "Araba") travelMode = "driving";
 
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=${travelMode}`;
 
-    console.log("MAP URL:", url);
-
     Linking.openURL(url);
+  };
+
+  // 🔥 SONRAKİ GÜN
+  const nextDay = () => {
+    if (currentDay < days.length - 1) {
+      setCurrentDay(currentDay + 1);
+    }
   };
 
   if (routePlaces.length === 0) {
@@ -77,6 +83,11 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
+
+      {/* 🔥 GÜN BAŞLIK */}
+      <Text style={styles.dayTitle}>
+        Gün {currentDay + 1}
+      </Text>
 
       <MapView
         ref={mapRef}
@@ -112,12 +123,21 @@ export default function MapScreen() {
 
       </MapView>
 
-      {/* 🔥 GOOGLE MAPS BUTON */}
+      {/* 🔥 GOOGLE MAPS */}
       <TouchableOpacity style={styles.mapsButton} onPress={openInMaps}>
         <Text style={styles.mapsButtonText}>
           Google Maps'te Aç
         </Text>
       </TouchableOpacity>
+
+      {/* 🔥 SONRAKİ GÜN */}
+      {currentDay < days.length - 1 && (
+        <TouchableOpacity style={styles.nextButton} onPress={nextDay}>
+          <Text style={styles.mapsButtonText}>
+            Günü Bitir → Sonraki Gün
+          </Text>
+        </TouchableOpacity>
+      )}
 
     </View>
   );
@@ -127,16 +147,38 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+
   map: {
     flex: 1,
   },
 
+  dayTitle: {
+    position: 'absolute',
+    top: 50,
+    alignSelf: 'center',
+    zIndex: 10,
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 10,
+    fontWeight: 'bold'
+  },
+
   mapsButton: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: '#34A853',
+    padding: 15,
+    borderRadius: 12,
+  },
+
+  nextButton: {
     position: 'absolute',
     bottom: 40,
     left: 20,
     right: 20,
-    backgroundColor: '#34A853',
+    backgroundColor: '#007AFF',
     padding: 15,
     borderRadius: 12,
   },

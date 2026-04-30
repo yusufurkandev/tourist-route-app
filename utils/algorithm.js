@@ -45,7 +45,7 @@ export function sortByDistance(placesList, userLat, userLon) {
   });
 }
 
-// 🔥 🔥 AKILLI SKOR (3 MOD DESTEK)
+// 🔥 AKILLI SKOR (3 MOD)
 export function scorePlaces(placesList, prefs, userLat, userLon) {
 
   // 🔥 MODA GÖRE FİLTRE
@@ -99,15 +99,19 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
     // ⏱️ süre
     if (prefs.duration) {
       const userDuration = parseInt(prefs.duration);
-      if (place.duration <= userDuration) score += 2;
-      else score -= 1;
+      if (!isNaN(userDuration)) {
+        if (place.duration <= userDuration) score += 2;
+        else score -= 1;
+      }
     }
 
     // 💰 bütçe
     if (prefs.budget) {
       const userBudget = parseInt(prefs.budget);
-      if (place.cost <= userBudget) score += 2;
-      else score -= 1;
+      if (!isNaN(userBudget)) {
+        if (place.cost <= userBudget) score += 2;
+        else score -= 1;
+      }
     }
 
     // ⭐ popülerlik
@@ -126,6 +130,33 @@ export function selectTopPlaces(scoredPlaces, limit) {
   return [...scoredPlaces]
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, limit > 0 ? limit : 5);
+}
+
+// 🔥 GÜNLERE BÖL (DENGELİ)
+export function splitIntoDaysByCount(routePlaces, totalDays = 1) {
+
+  if (totalDays <= 1) return [routePlaces];
+
+  const days = [];
+
+  const totalPlaces = routePlaces.length;
+
+  const perDay = Math.ceil(totalPlaces / totalDays);
+
+  let index = 0;
+
+  for (let d = 0; d < totalDays; d++) {
+
+    const dayPlaces = routePlaces.slice(index, index + perDay);
+
+    if (dayPlaces.length > 0) {
+      days.push(dayPlaces);
+    }
+
+    index += perDay;
+  }
+
+  return days;
 }
 
 // 🔥 ROUTE (EN YAKIN KOMŞU)
