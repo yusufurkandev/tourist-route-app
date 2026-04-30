@@ -1,26 +1,22 @@
-// 🔥 KATEGORİ NORMALIZE (TR)
+
+// 🔥 normalize (Türkçe güvenli)
 function normalizeCategory(value) {
   if (!value) return "";
-
   return value.toLowerCase().trim();
 }
 
-// 🔥 KATEGORİ FİLTRE (ÇOKLU DESTEK)
+// 🔥 FILTER (UI kategorilerine göre)
 export function filterByInterest(placesList, interest) {
   if (!interest) return placesList;
 
   const normalizedInterest = normalizeCategory(interest);
 
   return placesList.filter((place) => {
-    // 🟢 yeni sistem (categories array)
-    if (place.categories && place.categories.length > 0) {
-      return place.categories.some(
-        (cat) => normalizeCategory(cat) === normalizedInterest
-      );
-    }
+    if (!place.categories) return false;
 
-    // 🟡 eski sistem fallback
-    return normalizeCategory(place.category) === normalizedInterest;
+    return place.categories.some(
+      (cat) => normalizeCategory(cat) === normalizedInterest
+    );
   });
 }
 
@@ -50,35 +46,35 @@ export function sortByDistance(placesList, userLat, userLon) {
   });
 }
 
-// 🔥 SKOR ALGORİTMASI (GELİŞTİRİLMİŞ)
+// 🔥 SKOR (UI KATEGORİ + PREF UYUMLU)
 export function scorePlaces(placesList, prefs) {
   return placesList.map((place) => {
     let score = 0;
 
-    // ⏱️ süre uyumu
+    // ⏱️ süre
     if (prefs.duration) {
       const userDuration = parseInt(prefs.duration);
       if (place.duration <= userDuration) score += 2;
       else score -= 1;
     }
 
-    // 💰 bütçe uyumu
+    // 💰 bütçe
     if (prefs.budget) {
       const userBudget = parseInt(prefs.budget);
       if (place.cost <= userBudget) score += 2;
       else score -= 1;
     }
 
-    // 🚶 ulaşım uyumu
+    // 🚶 ulaşım
     if (prefs.transport === "Yürüyüş") {
-      if (place.category === "Doğa") score += 1;
+      if (place.categories?.includes("Doğa")) score += 1;
     }
 
     if (prefs.transport === "Araba") {
       score += 1;
     }
 
-    // ⭐ popülerlik etkisi (normalize)
+    // ⭐ popülerlik
     score += (place.popularity || 0) * 0.5;
 
     return {
@@ -88,14 +84,14 @@ export function scorePlaces(placesList, prefs) {
   });
 }
 
-// 🔥 EN İYİLERİ SEÇ
+// 🔥 TOP SELECTION
 export function selectTopPlaces(scoredPlaces, limit) {
   return [...scoredPlaces]
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, limit > 0 ? limit : 5);
 }
 
-// 🔥 ROUTE (NEAREST NEIGHBOR)
+// 🔥 ROUTE (EN YAKIN KOMŞU)
 export function buildRoute(placesList, startLat, startLon) {
   const route = [];
 
