@@ -28,7 +28,7 @@ export default function MapScreen() {
 
   const routePlaces = days[currentDay] || [];
 
-  // 🔥 KULLANICI KONUMU AL
+  // 🔥 KULLANICI KONUMU
   useEffect(() => {
 
     const getLocation = async () => {
@@ -48,7 +48,7 @@ export default function MapScreen() {
 
   }, []);
 
-  // 🔥 AUTO ZOOM (ROTA + USER)
+  // 🔥 AUTO ZOOM
   useEffect(() => {
 
     if (!mapRef.current) return;
@@ -58,7 +58,6 @@ export default function MapScreen() {
       longitude: p.lng
     }));
 
-    // kullanıcı varsa ekle
     if (userLocation) {
       coords.push({
         latitude: userLocation.latitude,
@@ -80,16 +79,21 @@ export default function MapScreen() {
 
   }, [routePlaces, userLocation]);
 
-  // 🔥 GOOGLE MAPS
+  // 🔥 GOOGLE MAPS (FIXLİ)
   const openInMaps = () => {
 
     if (routePlaces.length === 0) return;
 
-    const origin = `${routePlaces[0].lat},${routePlaces[0].lng}`;
+    // 🔥 BAŞLANGIÇ: KULLANICI KONUMU
+    const origin = userLocation
+      ? `${userLocation.latitude},${userLocation.longitude}`
+      : `${routePlaces[0].lat},${routePlaces[0].lng}`;
+
     const destination = `${routePlaces[routePlaces.length - 1].lat},${routePlaces[routePlaces.length - 1].lng}`;
 
+    // 🔥 TÜM NOKTALARI WAYPOINT YAP (ilk dahil)
     const waypoints = routePlaces
-      .slice(1, -1)
+      .slice(0, -1)
       .map(p => `${p.lat},${p.lng}`)
       .join('|');
 
@@ -99,6 +103,8 @@ export default function MapScreen() {
     else if (transport === "Toplu Taşıma") travelMode = "transit";
 
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=${travelMode}`;
+
+    console.log("MAP URL:", url);
 
     Linking.openURL(url);
   };
@@ -132,7 +138,7 @@ export default function MapScreen() {
         }}
       >
 
-        {/* 🔥 SEN BURADASIN */}
+        {/* 🔵 SEN BURADASIN */}
         {userLocation && (
           <Marker
             coordinate={{
@@ -141,6 +147,24 @@ export default function MapScreen() {
             }}
             title="Sen burdasın"
             pinColor="blue"
+          />
+        )}
+
+        {/* 🔥 SEN → İLK DURAK */}
+        {userLocation && routePlaces.length > 0 && (
+          <Polyline
+            coordinates={[
+              {
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude
+              },
+              {
+                latitude: routePlaces[0].lat,
+                longitude: routePlaces[0].lng
+              }
+            ]}
+            strokeWidth={4}
+            strokeColor="#007AFF"
           />
         )}
 
