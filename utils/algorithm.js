@@ -1,4 +1,3 @@
-
 // 🔥 normalize (Türkçe güvenli)
 function normalizeCategory(value) {
   if (!value) return "";
@@ -46,10 +45,32 @@ export function sortByDistance(placesList, userLat, userLon) {
   });
 }
 
-// 🔥 SKOR (UI KATEGORİ + PREF UYUMLU)
-export function scorePlaces(placesList, prefs) {
+// 🔥 🔥 EN KRİTİK: AKILLI SKOR (YÜRÜYÜŞ FIX)
+export function scorePlaces(placesList, prefs, userLat, userLon) {
   return placesList.map((place) => {
     let score = 0;
+
+    const distance = calculateDistance(
+      userLat,
+      userLon,
+      place.lat,
+      place.lng
+    );
+
+    // 🚶 YÜRÜYÜŞ MODU
+    if (prefs.transport === "Yürüyüş") {
+      if (distance < 1) score += 6;        // çok yakın
+      else if (distance < 3) score += 4;   // yakın
+      else if (distance < 5) score += 1;   // idare eder
+      else score -= 6;                     // uzaksa sert ceza
+    }
+
+    // 🚗 ARABA MODU
+    if (prefs.transport === "Araba") {
+      if (distance < 2) score += 1;
+      else if (distance < 10) score += 3;
+      else score += 2;
+    }
 
     // ⏱️ süre
     if (prefs.duration) {
@@ -65,21 +86,13 @@ export function scorePlaces(placesList, prefs) {
       else score -= 1;
     }
 
-    // 🚶 ulaşım
-    if (prefs.transport === "Yürüyüş") {
-      if (place.categories?.includes("Doğa")) score += 1;
-    }
-
-    if (prefs.transport === "Araba") {
-      score += 1;
-    }
-
     // ⭐ popülerlik
     score += (place.popularity || 0) * 0.5;
 
     return {
       ...place,
       score,
+      distance // debug için
     };
   });
 }

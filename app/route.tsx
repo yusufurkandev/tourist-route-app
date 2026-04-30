@@ -95,11 +95,16 @@ export default function RouteScreen() {
 
       const sorted = sortByDistance(working, userLat, userLon);
 
-      const scored = scorePlaces(sorted, {
-        duration,
-        budget,
-        transport
-      });
+      const scored = scorePlaces(
+        sorted,
+        {
+          duration,
+          budget,
+          transport
+        },
+        userLat,
+        userLon
+    );
 
       const finalPlaces =
         scored.length > 0
