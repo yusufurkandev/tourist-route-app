@@ -10,7 +10,6 @@ import {
   buildRoute
 } from '../utils/algorithm';
 
-// 📍 ŞEHİR KOORDİNATLARI
 const cityCoords: Record<string, { lat: number; lon: number }> = {
   Istanbul: { lat: 41.0082, lon: 28.9784 },
   Ankara: { lat: 39.9334, lon: 32.8597 },
@@ -21,7 +20,6 @@ const cityCoords: Record<string, { lat: number; lon: number }> = {
   Gaziantep: { lat: 37.0662, lon: 37.3833 },
 };
 
-// 🔥 TYPE TANIMI (hataları çözer)
 type Place = {
   id: number;
   name: string;
@@ -49,53 +47,100 @@ export default function RouteScreen() {
   const budget = typeof params.budget === 'string' ? params.budget : "";
   const transport = typeof params.transport === 'string' ? params.transport : "";
 
-  const density = parseInt(params.density as string) || 5;
+  const density = Number(params.density) > 0 ? Number(params.density) : 5;
 
   // 🔥 API
   useEffect(() => {
-    fetch(`http://192.168.1.130:5000/places?city=Kayseri`)
+    fetch(`http://192.168.1.130:5000/places?city=${city}`)
       .then(res => res.json())
       .then((data: Place[]) => {
         console.log("API DATA:", data);
         setPlaces(data);
       })
-      .catch(err => console.log(err));
-  }, [city]);
+      .catch(err => console.log("API ERROR:", err));
+  }, []);
 
-  // 🔥 ALGORİTMA
+  // 🔥 ALGORİTMA (SAFE + FALLBACK)
   useEffect(() => {
     if (places.length === 0) return;
 
-    const filteredPlaces = interest
-      ? filterByInterest(places, interest)
-      : places;
+    console.log("PLACES:", places);
 
-    const userLat = cityCoords[city]?.lat || 41.0082;
-    const userLon = cityCoords[city]?.lon || 28.9784;
+    try {
+      let working = places;
 
-    const sortedPlaces = sortByDistance(filteredPlaces, userLat, userLon);
+      // 1️⃣ FILTER
+      const filtered = interest
+        ? filterByInterest(working, interest)
+        : working;
 
-    const scoredPlaces = scorePlaces(sortedPlaces, {
-      duration,
-      budget,
-      transport
-    });
+      console.log("FILTERED:", filtered);
 
-    const finalPlaces = selectTopPlaces(scoredPlaces, density);
+      // ❗ Eğer filtre boşsa fallback
+      if (filtered.length === 0) {
+        console.log("FILTER EMPTY → fallback to ALL");
+        working = places;
+      } else {
+        working = filtered;
+      }
 
-    const route = buildRoute(finalPlaces, userLat, userLon);
+      // 2️⃣ SORT
+      const userLat = cityCoords[city]?.lat || 41.0082;
+      const userLon = cityCoords[city]?.lon || 28.9784;
 
-    console.log("ROUTE:", route);
+      const sorted = sortByDistance(working, userLat, userLon);
+      console.log("SORTED:", sorted);
 
-    setRoutePlaces(route);
+      // 3️⃣ SCORE
+      const scored = scorePlaces(sorted, {
+        duration,
+        budget,
+        transport
+      });
+
+      console.log("SCORED:", scored);
+
+      // 4️⃣ LIMIT (SAFE)
+      const finalPlaces =
+        scored.length > 0
+          ? scored.slice(0, density)
+          : sorted.slice(0, density);
+
+      console.log("FINAL:", finalPlaces);
+
+      // 5️⃣ ROUTE
+      const route = buildRoute(finalPlaces, userLat, userLon);
+
+      console.log("ROUTE:", route);
+
+      // ❗ Eğer route boşsa fallback
+      if (route.length === 0) {
+        console.log("ROUTE EMPTY → fallback direct list");
+        setRoutePlaces(finalPlaces);
+      } else {
+        setRoutePlaces(route);
+      }
+
+    } catch (err) {
+      console.log("ALGORITHM ERROR:", err);
+      setRoutePlaces(places); // fallback
+    }
 
   }, [places]);
 
   // 🔥 LOADING
+  if (places.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Text>Veri çekiliyor...</Text>
+      </View>
+    );
+  }
+
   if (routePlaces.length === 0) {
     return (
       <View style={styles.container}>
-        <Text>Yükleniyor...</Text>
+        <Text>Rota oluşturulamadı</Text>
       </View>
     );
   }
