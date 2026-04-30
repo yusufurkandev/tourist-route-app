@@ -4,7 +4,7 @@ function normalizeCategory(value) {
   return value.toLowerCase().trim();
 }
 
-// 🔥 FILTER (UI kategorilerine göre)
+// 🔥 FILTER
 export function filterByInterest(placesList, interest) {
   if (!interest) return placesList;
 
@@ -19,7 +19,7 @@ export function filterByInterest(placesList, interest) {
   });
 }
 
-// 🔥 MESAFE HESAPLA
+// 🔥 MESAFE
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
 
@@ -36,7 +36,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// 🔥 MESAFEYE GÖRE SIRALA
+// 🔥 SIRALA
 export function sortByDistance(placesList, userLat, userLon) {
   return [...placesList].sort((a, b) => {
     const distA = calculateDistance(userLat, userLon, a.lat, a.lng);
@@ -45,10 +45,9 @@ export function sortByDistance(placesList, userLat, userLon) {
   });
 }
 
-// 🔥 AKILLI SKOR (3 MOD)
+// 🔥 SKOR
 export function scorePlaces(placesList, prefs, userLat, userLon) {
 
-  // 🔥 MODA GÖRE FİLTRE
   if (prefs.transport === "Yürüyüş") {
     placesList = placesList.filter(p =>
       calculateDistance(userLat, userLon, p.lat, p.lng) < 5
@@ -72,7 +71,6 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
       place.lng
     );
 
-    // 🚶 YÜRÜYÜŞ
     if (prefs.transport === "Yürüyüş") {
       if (distance < 1) score += 6;
       else if (distance < 3) score += 4;
@@ -80,7 +78,6 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
       else score -= 6;
     }
 
-    // 🚌 TOPLU TAŞIMA
     if (prefs.transport === "Toplu Taşıma") {
       if (distance < 1) score += 1;
       else if (distance < 5) score += 4;
@@ -89,14 +86,12 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
       else score -= 3;
     }
 
-    // 🚗 ARABA
     if (prefs.transport === "Araba") {
       if (distance < 2) score += 1;
       else if (distance < 10) score += 3;
       else score += 2;
     }
 
-    // ⏱️ süre
     if (prefs.duration) {
       const userDuration = parseInt(prefs.duration);
       if (!isNaN(userDuration)) {
@@ -105,7 +100,6 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
       }
     }
 
-    // 💰 bütçe
     if (prefs.budget) {
       const userBudget = parseInt(prefs.budget);
       if (!isNaN(userBudget)) {
@@ -114,7 +108,6 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
       }
     }
 
-    // ⭐ popülerlik
     score += (place.popularity || 0) * 0.5;
 
     return {
@@ -125,41 +118,14 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
   });
 }
 
-// 🔥 TOP SELECTION
+// 🔥 TOP
 export function selectTopPlaces(scoredPlaces, limit) {
   return [...scoredPlaces]
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, limit > 0 ? limit : 5);
 }
 
-// 🔥 GÜNLERE BÖL (DENGELİ)
-export function splitIntoDaysByCount(routePlaces, totalDays = 1) {
-
-  if (totalDays <= 1) return [routePlaces];
-
-  const days = [];
-
-  const totalPlaces = routePlaces.length;
-
-  const perDay = Math.ceil(totalPlaces / totalDays);
-
-  let index = 0;
-
-  for (let d = 0; d < totalDays; d++) {
-
-    const dayPlaces = routePlaces.slice(index, index + perDay);
-
-    if (dayPlaces.length > 0) {
-      days.push(dayPlaces);
-    }
-
-    index += perDay;
-  }
-
-  return days;
-}
-
-// 🔥 ROUTE (EN YAKIN KOMŞU)
+// 🔥 ROUTE
 export function buildRoute(placesList, startLat, startLon) {
   const route = [];
 
@@ -195,4 +161,60 @@ export function buildRoute(placesList, startLat, startLon) {
   }
 
   return route;
+}
+
+// 🔥 BASİT GÜN BÖLME
+export function splitIntoDaysByCount(routePlaces, totalDays = 1) {
+
+  if (totalDays <= 1) return [routePlaces];
+
+  const days = [];
+  const perDay = Math.ceil(routePlaces.length / totalDays);
+
+  let index = 0;
+
+  for (let d = 0; d < totalDays; d++) {
+    const dayPlaces = routePlaces.slice(index, index + perDay);
+    if (dayPlaces.length > 0) days.push(dayPlaces);
+    index += perDay;
+  }
+
+  return days;
+}
+
+// 🔥🔥 SMART GÜN BÖLME (ASIL OLAY)
+export function splitIntoDaysSmart(routePlaces, totalDays = 1) {
+
+  if (totalDays <= 1) return [routePlaces];
+
+  const clusters = Array.from({ length: totalDays }, () => []);
+
+  // ilk noktaları merkez al
+  const seeds = routePlaces.slice(0, totalDays);
+
+  routePlaces.forEach((place) => {
+
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+
+    seeds.forEach((seed, index) => {
+
+      const dist = calculateDistance(
+        place.lat,
+        place.lng,
+        seed.lat,
+        seed.lng
+      );
+
+      if (dist < closestDistance) {
+        closestDistance = dist;
+        closestIndex = index;
+      }
+
+    });
+
+    clusters[closestIndex].push(place);
+  });
+
+  return clusters;
 }

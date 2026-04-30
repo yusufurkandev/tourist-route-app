@@ -8,7 +8,7 @@ import {
   scorePlaces,
   selectTopPlaces,
   buildRoute,
-  splitIntoDaysByCount
+  splitIntoDaysSmart
 } from '../utils/algorithm';
 
 const cityCoords: Record<string, { lat: number; lon: number }> = {
@@ -28,6 +28,7 @@ export default function RouteScreen() {
 
   const [places, setPlaces] = useState<any[]>([]);
   const [days, setDays] = useState<any[][]>([]);
+  const [loading, setLoading] = useState(true);
 
   const city = params.city as string;
   const interest = params.interest as string;
@@ -39,9 +40,13 @@ export default function RouteScreen() {
 
   // 🔥 API
   useEffect(() => {
+    setLoading(true);
+
     fetch(`http://192.168.1.130:5000/places?city=${city}`)
       .then(res => res.json())
-      .then(data => setPlaces(data))
+      .then(data => {
+        setPlaces(data);
+      })
       .catch(err => console.log(err));
   }, [city]);
 
@@ -75,16 +80,22 @@ export default function RouteScreen() {
     if (duration === "2 Gün") totalDays = 2;
     if (duration === "3 Gün") totalDays = 3;
 
-    const splitted = splitIntoDaysByCount(route, totalDays);
+    let splitted = splitIntoDaysSmart(route, totalDays);
+
+    // 🔥 EMPTY DAY FIX
+    splitted = splitted.filter(day => day.length > 0);
+
+    console.log("FINAL DAYS:", splitted);
 
     setDays(splitted);
+    setLoading(false);
 
   }, [places]);
 
-  if (days.length === 0) {
+  if (loading || days.length === 0) {
     return (
       <View style={styles.container}>
-        <Text>Yükleniyor...</Text>
+        <Text>Plan hazırlanıyor...</Text>
       </View>
     );
   }
@@ -111,14 +122,23 @@ export default function RouteScreen() {
                 {place.name}
               </Text>
 
-              <Text>{place.categories?.join(", ")}</Text>
+              <Text style={styles.category}>
+                {place.categories?.join(", ")}
+              </Text>
+
+              {/* 🔥 distance debug (istersen kaldır) */}
+              {place.distance && (
+                <Text style={styles.distance}>
+                  {place.distance.toFixed(2)} km
+                </Text>
+              )}
             </View>
           ))}
 
         </View>
       ))}
 
-      {/* 🔥 YENİ BUTON */}
+      {/* 🔥 GEZİ BAŞLAT */}
       <TouchableOpacity
         style={styles.mapButton}
         onPress={() => {
@@ -181,6 +201,17 @@ const styles = StyleSheet.create({
   name: {
     fontWeight: 'bold',
     fontSize: 16,
+  },
+
+  category: {
+    color: '#555',
+    marginTop: 4,
+  },
+
+  distance: {
+    marginTop: 5,
+    fontSize: 12,
+    color: '#999'
   },
 
   mapButton: {
