@@ -7,6 +7,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -19,15 +20,71 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
 
-  const handleRegister = () => {
-    if (!name || !username || !email || !password || !confirm) return;
-
-    if (password !== confirm) {
-      alert("Şifreler uyuşmuyor");
+  const handleRegister = async () => {
+    if (!name || !username || !email || !password || !confirm) {
+      Alert.alert("⚠️ Eksik Bilgi", "Lütfen tüm alanları doldurun");
       return;
     }
 
-    router.push('/');
+    if (!email.includes("@")) {
+      Alert.alert("📧 Geçersiz Email", "Email adresi '@' içermelidir");
+      return;
+    }
+
+    if (username.length < 3) {
+      Alert.alert("👤 Kullanıcı Adı", "Kullanıcı adı en az 3 karakter olmalı");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("🔒 Şifre", "Şifre en az 6 karakter olmalı");
+      return;
+    }
+
+    if (password !== confirm) {
+      Alert.alert("🔒 Şifre Hatası", "Şifreler uyuşmuyor");
+      return;
+    }
+
+    try {
+      const res = await fetch("http://192.168.1.130:5000/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name,
+          username,
+          email,
+          password
+        })
+      });
+
+      const data = await res.json();
+
+      // 🔥 SADECE BURASI DÜZELTİLDİ
+      if (res.ok) {
+        Alert.alert(
+          "🎉 Başarılı",
+          "Hesabın oluşturuldu!",
+          [
+            {
+              text: "Tamam",
+              onPress: () => router.push("/")
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "❌ Kayıt Hatası",
+          data.error || "Bir hata oluştu"
+        );
+      }
+
+    } catch (err) {
+      console.log("REGISTER ERROR:", err);
+      Alert.alert("🚫 Bağlantı Hatası", "Sunucuya ulaşılamadı");
+    }
   };
 
   return (
@@ -38,7 +95,6 @@ export default function Register() {
 
       <View style={styles.wrapper}>
 
-        {/* 🔥 HEADER */}
         <View style={styles.header}>
           <Text style={styles.logo}>RouteAI</Text>
           <Text style={styles.tagline}>
@@ -46,10 +102,8 @@ export default function Register() {
           </Text>
         </View>
 
-        {/* 🔥 CARD */}
         <View style={styles.card}>
 
-          {/* 👤 İSİM */}
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="Ad Soyad"
@@ -60,7 +114,6 @@ export default function Register() {
             />
           </View>
 
-          {/* 👤 USERNAME */}
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="Kullanıcı adı"
@@ -71,7 +124,6 @@ export default function Register() {
             />
           </View>
 
-          {/* 📧 EMAIL */}
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="Email"
@@ -83,7 +135,6 @@ export default function Register() {
             />
           </View>
 
-          {/* 🔒 ŞİFRE */}
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="Şifre"
@@ -95,7 +146,6 @@ export default function Register() {
             />
           </View>
 
-          {/* 🔒 ŞİFRE TEKRAR */}
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="Şifreyi tekrar gir"
@@ -107,12 +157,10 @@ export default function Register() {
             />
           </View>
 
-          {/* 🔥 BUTTON */}
           <TouchableOpacity style={styles.button} onPress={handleRegister}>
             <Text style={styles.buttonText}>Kayıt Ol</Text>
           </TouchableOpacity>
 
-          {/* 🔥 ALT */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Zaten hesabın var mı?</Text>
             <TouchableOpacity onPress={() => router.push('/')}>
