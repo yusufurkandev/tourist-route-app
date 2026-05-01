@@ -124,7 +124,7 @@ export default function Preferences2() {
             }
 
             router.push({
-              pathname: '/route',
+              pathname: '/loading',
               params: {
                 city,
                 travelType,
