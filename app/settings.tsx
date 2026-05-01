@@ -28,7 +28,26 @@ export default function Settings() {
 
           if (!rawUser) return;
 
-          const parsedUser = JSON.parse(rawUser);
+          let parsedUser = JSON.parse(rawUser);
+
+          // 🔥 EKSİK USER FIX (username/email yoksa backend’den çek)
+          if (!parsedUser.username || !parsedUser.email) {
+            try {
+              const res = await fetch(`http://192.168.1.130:5000/user/${parsedUser.id}`);
+              const data = await res.json();
+
+              if (data.success) {
+                parsedUser = data.user;
+
+                await AsyncStorage.setItem(
+                  "user",
+                  JSON.stringify(parsedUser)
+                );
+              }
+            } catch (e) {
+              console.log("USER FETCH ERROR:", e);
+            }
+          }
 
           if (!isActive) return;
 
