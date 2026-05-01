@@ -30,6 +30,7 @@ export default function RouteScreen() {
   const transport = params.transport as string;
   const density = parseInt(params.density as string) || 5;
 
+  // 📍 KONUM
   useEffect(() => {
     const getLocation = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -45,6 +46,7 @@ export default function RouteScreen() {
     getLocation();
   }, []);
 
+  // 🌍 API
   useEffect(() => {
     fetch(`http://192.168.1.130:5000/places?city=${city}`)
       .then(res => res.json())
@@ -52,6 +54,7 @@ export default function RouteScreen() {
       .catch(err => console.log(err));
   }, [city]);
 
+  // 🧠 ALGORİTMA
   useEffect(() => {
 
     if (!places.length || !userLocation) return;
@@ -68,6 +71,11 @@ export default function RouteScreen() {
     const scored = scorePlaces(filtered, prefs, userLat, userLon);
     const selected = selectTopPlaces(scored, density);
 
+    if (!selected || selected.length === 0) {
+      console.log("Seçilen yer yok");
+      return;
+    }
+
     const route = buildSmartRoute(
       { lat: userLat, lng: userLon },
       selected,
@@ -79,7 +87,12 @@ export default function RouteScreen() {
     if (duration === "3 Gün") totalDays = 3;
 
     let splitted = splitIntoDaysSmart(route, totalDays);
-    splitted = splitted.filter(day => day.length > 0);
+    splitted = splitted.filter(day => day && day.length > 0);
+
+    if (!splitted || splitted.length === 0) {
+      console.log("Split başarısız");
+      return;
+    }
 
     setDays(splitted);
 
@@ -101,7 +114,7 @@ export default function RouteScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-      {/* 🔥 HEADER */}
+      {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>
           📍 {city}
@@ -118,7 +131,6 @@ export default function RouteScreen() {
             Gün {dayIndex + 1}
           </Text>
 
-          {/* SABAH */}
           {day.morning.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.timeTitle}>🌅 Sabah</Text>
@@ -128,7 +140,6 @@ export default function RouteScreen() {
             </View>
           )}
 
-          {/* ÖĞLEN */}
           {day.afternoon.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.timeTitle}>☀️ Öğlen</Text>
@@ -138,7 +149,6 @@ export default function RouteScreen() {
             </View>
           )}
 
-          {/* AKŞAM */}
           {day.evening.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.timeTitle}>🌙 Akşam</Text>
@@ -151,17 +161,25 @@ export default function RouteScreen() {
         </View>
       ))}
 
+      {/* 🚀 MAP BUTONU (FIXED) */}
       <TouchableOpacity
         style={styles.mapButton}
         onPress={() => {
+
+          if (!days || days.length === 0) {
+            console.log("Days boş, map açılmadı");
+            return;
+          }
+
           router.push({
             pathname: '/map',
             params: {
               days: JSON.stringify(days),
-              currentDay: 0,
-              transport: transport
+              currentDay: "0",
+              transport: transport || "driving"
             }
           });
+
         }}
       >
         <Text style={styles.mapButtonText}>
@@ -173,7 +191,7 @@ export default function RouteScreen() {
   );
 }
 
-// 🔥 CARD
+// CARD
 function Card({ place, index }: any) {
   return (
     <View style={styles.card}>

@@ -1,257 +1,348 @@
-import { View, StyleSheet, TouchableOpacity, Text, Linking } from 'react-native';
+import { View, StyleSheet, Text, Animated, TouchableOpacity, Linking } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import * as Location from 'expo-location';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRef, useEffect, useState } from 'react';
+import * as Location from 'expo-location'; // ✅ EKLENDİ
 
 export default function MapScreen() {
 
   const params = useLocalSearchParams();
+  const router = useRouter();
   const mapRef = useRef<MapView>(null);
 
-  const transport = params.transport as string;
+  const [routePlaces, setRoutePlaces] = useState<any[]>([]);
+  const [animatedCoords, setAnimatedCoords] = useState<any[]>([]);
+  const [visibleMarkers, setVisibleMarkers] = useState<any[]>([]);
+  const [userLocation, setUserLocation] = useState<any>(null); // ✅ EKLENDİ
 
-  const [currentDay, setCurrentDay] = useState(
-    parseInt(params.currentDay as string) || 0
-  );
+  const dropAnim = useRef(new Animated.Value(0)).current;
+  const currentDay = parseInt(params.currentDay as string) || 0;
 
-  const [userLocation, setUserLocation] = useState<any>(null);
-
-  let days: any[][] = [];
-
-  // 🔥 JSON PARSE
-  try {
-    days = params.days ? JSON.parse(params.days as string) : [];
-  } catch (e) {
-    console.log("JSON PARSE ERROR:", e);
-  }
-
-  const routePlaces = days[currentDay] || [];
-
-  // 🔥 KULLANICI KONUMU
+  // ✅ USER LOCATION (EKLENDİ)
   useEffect(() => {
-
-    const getLocation = async () => {
-
+    (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
-
       if (status !== 'granted') return;
 
-      let location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.BestForNavigation
-      });
-
-      setUserLocation(location.coords);
-    };
-
-    getLocation();
-
+      let loc = await Location.getCurrentPositionAsync({});
+      setUserLocation(loc.coords);
+    })();
   }, []);
 
-  // 🔥 AUTO ZOOM
+  // 🔥 SAFE PARSE
   useEffect(() => {
+    try {
+      const raw = params.days;
+      if (!raw) return;
 
-    if (!mapRef.current) return;
+      const parsedDays = JSON.parse(raw as string);
 
-    const coords = routePlaces.map((p) => ({
-      latitude: p.lat,
-      longitude: p.lng
-    }));
+      if (!Array.isArray(parsedDays)) return;
+      if (!parsedDays[currentDay]) return;
 
-    if (userLocation) {
-      coords.push({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude
-      });
+      const clean = parsedDays[currentDay].filter(
+        (p: any) => p && p.lat && p.lng
+      );
+
+      setRoutePlaces(clean);
+
+    } catch (e) {
+      console.log("JSON ERROR:", e);
     }
+  }, []);
 
-    if (coords.length > 0) {
-      mapRef.current.fitToCoordinates(coords, {
-        edgePadding: {
-          top: 80,
-          right: 80,
-          bottom: 80,
-          left: 80
-        },
-        animated: true
-      });
-    }
+  const startLocation =
+    routePlaces.length > 0
+      ? {
+          latitude: routePlaces[0].lat,
+          longitude: routePlaces[0].lng,
+        }
+      : {
+          latitude: 41.0082,
+          longitude: 28.9784,
+        };
 
-  }, [routePlaces, userLocation]);
-
-  // 🔥 GOOGLE MAPS (FIXLİ)
-  const openInMaps = () => {
+  useEffect(() => {
 
     if (routePlaces.length === 0) return;
 
-    // 🔥 BAŞLANGIÇ: KULLANICI KONUMU
+    setAnimatedCoords([]);
+
+    let i = 0;
+
+    const interval = setInterval(() => {
+
+      const place = routePlaces[i];
+      if (!place) return;
+
+      setAnimatedCoords(prev => [
+        ...prev,
+        {
+          latitude: place.lat,
+          longitude: place.lng,
+        },
+      ]);
+
+      i++;
+      if (i >= routePlaces.length) clearInterval(interval);
+
+    }, 300);
+
+    return () => clearInterval(interval);
+
+  }, [routePlaces]);
+
+  useEffect(() => {
+
+    if (routePlaces.length === 0) return;
+
+    setVisibleMarkers([]);
+
+    let i = 0;
+
+    const interval = setInterval(() => {
+
+      const place = routePlaces[i];
+      if (!place) return;
+
+      setVisibleMarkers(prev => [...prev, place]);
+
+      dropAnim.setValue(-20);
+      Animated.spring(dropAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+
+      i++;
+      if (i >= routePlaces.length) clearInterval(interval);
+
+    }, 400);
+
+    return () => clearInterval(interval);
+
+  }, [routePlaces]);
+
+  useEffect(() => {
+
+    if (!mapRef.current || animatedCoords.length < 2) return;
+
+    mapRef.current.fitToCoordinates(animatedCoords, {
+      edgePadding: {
+        top: 100,
+        right: 50,
+        bottom: 150,
+        left: 50,
+      },
+      animated: true,
+    });
+
+  }, [animatedCoords]);
+
+  // ✅ SADECE BURASI DEĞİŞTİ
+  const openNavigation = () => {
+
+    if (!routePlaces || routePlaces.length === 0) return;
+
     const origin = userLocation
       ? `${userLocation.latitude},${userLocation.longitude}`
       : `${routePlaces[0].lat},${routePlaces[0].lng}`;
 
     const destination = `${routePlaces[routePlaces.length - 1].lat},${routePlaces[routePlaces.length - 1].lng}`;
 
-    // 🔥 TÜM NOKTALARI WAYPOINT YAP (ilk dahil)
     const waypoints = routePlaces
       .slice(0, -1)
-      .map(p => `${p.lat},${p.lng}`)
+      .map((p: any) => `${p.lat},${p.lng}`)
       .join('|');
 
     let travelMode = "driving";
 
-    if (transport === "Yürüyüş") travelMode = "walking";
-    else if (transport === "Toplu Taşıma") travelMode = "transit";
+    if (params.transport === "Yürüyüş") travelMode = "walking";
+    if (params.transport === "Toplu taşıma") travelMode = "transit";
 
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=${travelMode}`;
-
-    console.log("MAP URL:", url);
 
     Linking.openURL(url);
   };
 
-  // 🔥 SONRAKİ GÜN
-  const nextDay = () => {
-    if (currentDay < days.length - 1) {
-      setCurrentDay(currentDay + 1);
-    }
-  };
-
   if (routePlaces.length === 0) {
-    return <View style={styles.container} />;
+    return (
+      <View style={styles.center}>
+        <Text>Rota verisi bulunamadı</Text>
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
 
-      <Text style={styles.dayTitle}>
-        Gün {currentDay + 1}
-      </Text>
-
       <MapView
         ref={mapRef}
         style={styles.map}
         initialRegion={{
-          latitude: routePlaces[0].lat,
-          longitude: routePlaces[0].lng,
+          latitude: startLocation.latitude,
+          longitude: startLocation.longitude,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
       >
 
-        {/* 🔵 SEN BURADASIN */}
-        {userLocation && (
-          <Marker
-            coordinate={{
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude
-            }}
-            title="Sen burdasın"
-            pinColor="blue"
-          />
-        )}
+        <Marker coordinate={startLocation} title="Başlangıç" pinColor="blue" />
 
-        {/* 🔥 SEN → İLK DURAK */}
-        {userLocation && routePlaces.length > 0 && (
-          <Polyline
-            coordinates={[
-              {
-                latitude: userLocation.latitude,
-                longitude: userLocation.longitude
-              },
-              {
-                latitude: routePlaces[0].lat,
-                longitude: routePlaces[0].lng
-              }
-            ]}
-            strokeWidth={4}
-            strokeColor="#007AFF"
-          />
-        )}
+        <Polyline
+          coordinates={animatedCoords}
+          strokeWidth={5}
+          strokeColor="#007AFF"
+        />
 
-        {/* 📍 ROTA NOKTALARI */}
-        {routePlaces.map((place, index) => (
+        {visibleMarkers.map((place, index) => (
           <Marker
             key={index}
             coordinate={{
               latitude: place.lat,
-              longitude: place.lng
+              longitude: place.lng,
             }}
-            title={`${index + 1}. ${place.name}`}
-          />
+            title={place.name}
+          >
+            <Animated.View
+              style={[
+                styles.marker,
+                {
+                  transform: [{ translateY: dropAnim }],
+                },
+              ]}
+            >
+              <Text style={styles.markerText}>
+                {index + 1}
+              </Text>
+            </Animated.View>
+          </Marker>
         ))}
-
-        {/* 🔥 ROTA */}
-        <Polyline
-          coordinates={routePlaces.map((p) => ({
-            latitude: p.lat,
-            longitude: p.lng
-          }))}
-          strokeWidth={4}
-        />
 
       </MapView>
 
-      <TouchableOpacity style={styles.mapsButton} onPress={openInMaps}>
-        <Text style={styles.mapsButtonText}>
-          Google Maps'te Aç
-        </Text>
-      </TouchableOpacity>
+      <View style={styles.bottomPanel}>
 
-      {currentDay < days.length - 1 && (
-        <TouchableOpacity style={styles.nextButton} onPress={nextDay}>
-          <Text style={styles.mapsButtonText}>
-            Günü Bitir → Sonraki Gün
+        <Text style={styles.dayText}>
+          Gün {currentDay + 1}
+        </Text>
+
+        <View style={styles.buttonsRow}>
+
+          {currentDay > 0 && (
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/map',
+                  params: {
+                    days: params.days,
+                    currentDay: (currentDay - 1).toString(),
+                    transport: params.transport
+                  }
+                })
+              }
+            >
+              <Text style={styles.button}>← Önceki Gün</Text>
+            </TouchableOpacity>
+          )}
+
+          {currentDay < JSON.parse(params.days as string).length - 1 && (
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/map',
+                  params: {
+                    days: params.days,
+                    currentDay: (currentDay + 1).toString(),
+                    transport: params.transport
+                  }
+                })
+              }
+            >
+              <Text style={styles.button}>Sonraki Gün →</Text>
+            </TouchableOpacity>
+          )}
+
+        </View>
+
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={openNavigation}
+        >
+          <Text style={styles.googleButtonText}>
+            Haritada Göster 🌍
           </Text>
         </TouchableOpacity>
-      )}
+
+      </View>
 
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1 },
+  map: { flex: 1 },
+
+  center: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
-  map: {
-    flex: 1,
-  },
-
-  dayTitle: {
-    position: 'absolute',
-    top: 50,
-    alignSelf: 'center',
-    zIndex: 10,
-    backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 10,
-    fontWeight: 'bold'
-  },
-
-  mapsButton: {
-    position: 'absolute',
-    bottom: 100,
-    left: 20,
-    right: 20,
-    backgroundColor: '#34A853',
-    padding: 15,
-    borderRadius: 12,
-  },
-
-  nextButton: {
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
+  marker: {
     backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 12,
+    padding: 6,
+    borderRadius: 20,
+    minWidth: 28,
+    alignItems: 'center',
   },
 
-  mapsButtonText: {
+  markerText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+
+  bottomPanel: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+
+  dayText: {
+    textAlign: 'center',
+    fontWeight: '700',
+    fontSize: 16,
+    marginBottom: 10,
+  },
+
+  buttonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  button: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+
+  googleButton: {
+    marginTop: 12,
+    backgroundColor: '#34A853',
+    padding: 12,
+    borderRadius: 10,
+  },
+
+  googleButtonText: {
     color: '#fff',
     textAlign: 'center',
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 });
