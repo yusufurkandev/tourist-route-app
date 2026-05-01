@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,22 +7,35 @@ import {
   Image,
   ScrollView
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [image, setImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const getUser = async () => {
-      const data = await AsyncStorage.getItem("user");
-      if (data) {
-        setUser(JSON.parse(data));
-      }
-    };
-    getUser();
-  }, []);
+  // 🔥 HER EKRANA GELDİĞİNDE ÇALIŞIR
+  useFocusEffect(
+    useCallback(() => {
+      const getUser = async () => {
+        const data = await AsyncStorage.getItem("user");
+
+        if (data) {
+          const parsedUser = JSON.parse(data);
+          setUser(parsedUser);
+
+          const savedImage = await AsyncStorage.getItem(
+            `profileImage_${parsedUser.id}`
+          );
+
+          setImage(savedImage);
+        }
+      };
+
+      getUser();
+    }, [])
+  );
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -31,7 +44,11 @@ export default function Home() {
       <View style={styles.header}>
 
         <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }} // 🔥 placeholder profil
+          source={
+            image
+              ? { uri: image }
+              : { uri: 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }
+          }
           style={styles.profileImage}
         />
 
@@ -52,7 +69,6 @@ export default function Home() {
       >
         <Text style={styles.mainIcon}>🗺️</Text>
 
-        {/* 🔥 TAŞMA FIX */}
         <View style={styles.mainTextContainer}>
           <Text style={styles.mainTitle}>Rota Oluştur</Text>
           <Text style={styles.mainDesc}>
@@ -143,10 +159,9 @@ const styles = StyleSheet.create({
 
   mainIcon: {
     fontSize: 34,
-    marginRight: 15, // 🔥 gap yerine güvenli spacing
+    marginRight: 15,
   },
 
-  // 🔥 TAŞMA FIX
   mainTextContainer: {
     flex: 1,
   },
@@ -161,7 +176,7 @@ const styles = StyleSheet.create({
     color: '#dbeafe',
     fontSize: 13,
     marginTop: 4,
-    flexWrap: 'wrap', // 🔥 taşma engel
+    flexWrap: 'wrap',
   },
 
   row: {

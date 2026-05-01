@@ -22,25 +22,10 @@ export default function Index() {
 
   const logoAnim = useRef(new Animated.Value(0)).current;
 
-  // 🔥 AUTO LOGIN (EKLENDİ)
-  useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const user = await AsyncStorage.getItem("user");
-        if (user) {
-          router.replace('/home');
-        }
-      } catch (e) {
-        console.log("AsyncStorage ERROR:", e);
-      }
-    };
-
-    checkUser();
-  }, []);
-
+  // 🔥 GERÇEK LOGIN
   const handleLogin = async () => {
     if (!username || !password) {
-      Alert.alert("⚠️ Eksik Bilgi", "Kullanıcı adı ve şifre gir");
+      Alert.alert("Eksik Bilgi", "Kullanıcı adı ve şifre gir");
       return;
     }
 
@@ -51,7 +36,7 @@ export default function Index() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          username,
+          username: username.trim(),
           password
         })
       });
@@ -60,37 +45,23 @@ export default function Index() {
 
       if (res.ok && data.success) {
 
-        try {
-          await AsyncStorage.setItem("user", JSON.stringify(data.user));
-        } catch (e) {
-          console.log("SAVE ERROR:", e);
-        }
-
-        Alert.alert(
-          "🎉 Giriş Başarılı",
-          "Hoş geldin!",
-          [
-            {
-              text: "Devam",
-              onPress: () => router.replace('/home')
-            }
-          ]
+        await AsyncStorage.setItem(
+          "user",
+          JSON.stringify(data.user)
         );
+
+        router.replace('/home');
 
       } else {
-        Alert.alert(
-          "❌ Giriş Hatası",
-          data.error || "Kullanıcı adı veya şifre yanlış"
-        );
+        Alert.alert("Hata", data.error || "Giriş başarısız");
       }
 
     } catch (err) {
-      console.log("LOGIN ERROR:", err);
-      Alert.alert("🚫 Bağlantı Hatası", "Sunucuya ulaşılamadı");
+      Alert.alert("Bağlantı Hatası", "Sunucuya ulaşılamadı");
     }
   };
 
-  // 🔥 KEYBOARD ANIMATION (DOKUNULMADI)
+  // 🔥 KEYBOARD ANIMATION
   useEffect(() => {
 
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
@@ -122,7 +93,7 @@ export default function Index() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
 
-      {/* 🔥 LOGO (DOKUNULMADI) */}
+      {/* 🔥 LOGO */}
       <Animated.View
         style={[
           styles.topLogo,
@@ -130,7 +101,7 @@ export default function Index() {
         ]}
       >
         <Image
-          source={require('D:\\Projects\\graduation-project\\tourist-route-app\\assets\\images\\logo.png')}
+          source={require('../assets/images/logo.png')} // 🔥 FIX
           style={styles.topLogoImage}
         />
       </Animated.View>
@@ -203,7 +174,7 @@ const styles = StyleSheet.create({
   },
 
   topLogoImage: {
-    width: 200,
+    width: 190,
     height: 190,
     resizeMode: 'contain',
   },
