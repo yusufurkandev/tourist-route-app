@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -7,49 +7,28 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Image,
-  Keyboard,
-  Animated
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
-export default function Index() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+export default function Register() {
   const router = useRouter();
 
-  const logoAnim = useRef(new Animated.Value(0)).current;
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
 
-  const handleLogin = () => {
-    if (!username || !password) return;
-    router.push('/home');
+  const handleRegister = () => {
+    if (!name || !username || !email || !password || !confirm) return;
+
+    if (password !== confirm) {
+      alert("Şifreler uyuşmuyor");
+      return;
+    }
+
+    router.push('/');
   };
-
-  // 🔥 KEYBOARD ANIMATION
-  useEffect(() => {
-
-    const showSub = Keyboard.addListener('keyboardDidShow', () => {
-      Animated.timing(logoAnim, {
-        toValue: -40,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    });
-
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      Animated.timing(logoAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-
-  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -57,34 +36,31 @@ export default function Index() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
 
-      {/* 🔥 LOGO (ANİMASYONLU) */}
-      <Animated.View
-        style={[
-          styles.topLogo,
-          { transform: [{ translateY: logoAnim }] }
-        ]}
-      >
-        <Image
-          source={require('D:\\Projects\\graduation-project\\tourist-route-app\\assets\\images\\logo.png')}
-          style={styles.topLogoImage}
-        />
-      </Animated.View>
-
       <View style={styles.wrapper}>
 
+        {/* 🔥 HEADER */}
         <View style={styles.header}>
-
           <Text style={styles.logo}>RouteAI</Text>
-
           <Text style={styles.tagline}>
-            Akıllı rotanı saniyeler içinde oluştur
+            Yeni hesabını oluştur
           </Text>
-
         </View>
 
+        {/* 🔥 CARD */}
         <View style={styles.card}>
 
+          {/* 👤 İSİM */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              placeholder="Ad Soyad"
+              placeholderTextColor="#94a3b8"
+              value={name}
+              onChangeText={setName}
+              style={styles.input}
+            />
+          </View>
 
+          {/* 👤 USERNAME */}
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="Kullanıcı adı"
@@ -95,6 +71,19 @@ export default function Index() {
             />
           </View>
 
+          {/* 📧 EMAIL */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              placeholder="Email"
+              placeholderTextColor="#94a3b8"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              keyboardType="email-address"
+            />
+          </View>
+
+          {/* 🔒 ŞİFRE */}
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="Şifre"
@@ -106,14 +95,28 @@ export default function Index() {
             />
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Giriş Yap</Text>
+          {/* 🔒 ŞİFRE TEKRAR */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              placeholder="Şifreyi tekrar gir"
+              placeholderTextColor="#94a3b8"
+              secureTextEntry
+              value={confirm}
+              onChangeText={setConfirm}
+              style={styles.input}
+            />
+          </View>
+
+          {/* 🔥 BUTTON */}
+          <TouchableOpacity style={styles.button} onPress={handleRegister}>
+            <Text style={styles.buttonText}>Kayıt Ol</Text>
           </TouchableOpacity>
 
+          {/* 🔥 ALT */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Hesabın yok mu?</Text>
-            <TouchableOpacity onPress={() => router.push('/register')}>
-              <Text style={styles.link}> Kayıt Ol</Text>
+            <Text style={styles.footerText}>Zaten hesabın var mı?</Text>
+            <TouchableOpacity onPress={() => router.push('/')}>
+              <Text style={styles.link}> Giriş Yap</Text>
             </TouchableOpacity>
           </View>
 
@@ -132,18 +135,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#eef4ff',
   },
 
-  topLogo: {
-    position: 'absolute',
-    top: 20,
-    alignSelf: 'center',
-  },
-
-  topLogoImage: {
-    width: 200,
-    height: 200,
-    resizeMode: 'contain',
-  },
-
   wrapper: {
     flex: 1,
     justifyContent: 'center',
@@ -154,7 +145,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 25,
-    marginTop: 120,
   },
 
   logo: {
@@ -168,7 +158,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: '#64748b',
     fontSize: 14,
-    textAlign: 'center',
   },
 
   card: {
@@ -182,14 +171,6 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
-  },
-
-  welcome: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 20,
-    color: '#0f172a',
-    textAlign: 'center',
   },
 
   inputContainer: {
@@ -211,11 +192,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
-
-    shadowColor: '#3b82f6',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
   },
 
   buttonText: {

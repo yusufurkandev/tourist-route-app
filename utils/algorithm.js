@@ -36,6 +36,32 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// 🔥🔥 EKLENDİ → açı hesaplama (zigzag önleme)
+function calculateAngle(prev, current, next) {
+  if (!prev) return 0;
+
+  const v1 = {
+    x: current.lng - prev.lng,
+    y: current.lat - prev.lat
+  };
+
+  const v2 = {
+    x: next.lng - current.lng,
+    y: next.lat - current.lat
+  };
+
+  const dot = v1.x * v2.x + v1.y * v2.y;
+  const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+  const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+
+  if (mag1 === 0 || mag2 === 0) return 0;
+
+  const cos = dot / (mag1 * mag2);
+  const angle = Math.acos(Math.max(-1, Math.min(1, cos)));
+
+  return angle; // radyan
+}
+
 // 🔥 SMART SCORE (YENİ SİSTEM)
 export function calculateSmartScore(current, place, prefs) {
   const distance = calculateDistance(
@@ -47,10 +73,10 @@ export function calculateSmartScore(current, place, prefs) {
 
   let score = 0;
 
-  // 📍 Distance (en önemli)
+  // 📍 Distance
   score += distance * 2;
 
-  // ⭐ Popülerlik (yüksek iyidir → ters çeviriyoruz)
+  // ⭐ Popülerlik
   score += (5 - (place.popularity || 0)) * 3;
 
   // 💸 Bütçe
@@ -68,13 +94,21 @@ export function calculateSmartScore(current, place, prefs) {
   return score;
 }
 
-// 🔥 SMART NEXT PLACE
-export function selectNextPlace(current, places, prefs) {
+// 🔥 SMART NEXT PLACE (GÜNCELLENDİ)
+export function selectNextPlace(current, places, prefs, prev = null) {
   let best = null;
   let bestScore = Infinity;
 
   for (const place of places) {
-    const score = calculateSmartScore(current, place, prefs);
+    let score = calculateSmartScore(current, place, prefs);
+
+    // 🔥 EKLENDİ → zigzag cezası
+    const angle = calculateAngle(prev, current, place);
+
+    // keskin dönüşleri cezalandır
+    if (angle > Math.PI / 2) {
+      score += 15;
+    }
 
     if (score < bestScore) {
       bestScore = score;
@@ -85,25 +119,50 @@ export function selectNextPlace(current, places, prefs) {
   return best;
 }
 
-// 🔥🔥 SMART ROUTE (EN ÖNEMLİ)
+// 🔥🔥 SMART ROUTE (GÜNCELLENDİ - prev eklendi)
 export function buildSmartRoute(startLocation, places, prefs) {
+
+  // en yakın noktadan başlat (önceki adım)
+  let closestStart = places[0];
+  let minDist = Infinity;
+
+  for (const p of places) {
+    const dist = calculateDistance(
+      startLocation.lat,
+      startLocation.lng,
+      p.lat,
+      p.lng
+    );
+
+    if (dist < minDist) {
+      minDist = dist;
+      closestStart = p;
+    }
+  }
+
   const route = [];
-  let current = { lat: startLocation.lat, lng: startLocation.lng };
-  let remaining = [...places];
+  let current = { lat: closestStart.lat, lng: closestStart.lng };
+  let prev = null;
+
+  let remaining = places.filter(p => p !== closestStart);
+
+  route.push(closestStart);
 
   while (remaining.length > 0) {
-    const next = selectNextPlace(current, remaining, prefs);
+    const next = selectNextPlace(current, remaining, prefs, prev);
 
     route.push(next);
 
+    prev = current;
     current = { lat: next.lat, lng: next.lng };
+
     remaining = remaining.filter((p) => p !== next);
   }
 
   return route;
 }
 
-// 🔥 SCORE + FILTER (ESKİ SİSTEM GÜNCELLENDİ)
+// 🔥 SCORE + FILTER
 export function scorePlaces(placesList, prefs, userLat, userLon) {
   return placesList.map((place) => {
     const distance = calculateDistance(
@@ -132,7 +191,7 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
 export function selectTopPlaces(scoredPlaces, limit) {
   return [...scoredPlaces]
     .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, limit > 0 ? limit : 5);
+    .slice(limit > 0 ? limit : 5);
 }
 
 // 🔥 ALTERNATİF ÖNERİ
@@ -143,7 +202,7 @@ export function getAlternativePlaces(allPlaces, selectedPlaces) {
     .slice(0, 3);
 }
 
-// 🔥 GÜN İÇİ ZAMAN PLANLAMA (YENİ)
+// 🔥 GÜN İÇİ ZAMAN PLANLAMA
 export function assignTimeSlots(dayPlaces) {
   return {
     morning: dayPlaces.slice(0, 2),
@@ -170,7 +229,7 @@ export function splitIntoDaysByCount(routePlaces, totalDays = 1) {
   return days;
 }
 
-// 🔥🔥 SMART CLUSTER GÜN BÖLME (KORUNDU)
+// 🔥 SMART CLUSTER
 export function splitIntoDaysSmart(routePlaces, totalDays = 1) {
   if (totalDays <= 1) return [routePlaces];
 
