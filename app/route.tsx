@@ -22,7 +22,6 @@ export default function RouteScreen() {
   const [userLocation, setUserLocation] = useState<any>(null);
   const [places, setPlaces] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState("");
 
   const city = params.city as string;
   const interest = params.interest as string;
@@ -87,16 +86,6 @@ export default function RouteScreen() {
     const planned = splitted.map(day => assignTimeSlots(day));
     setPlannedDays(planned);
 
-    setSummary(`
-${city} için sana özel ${totalDays} günlük rota oluşturduk ✨
-
-• ${interest || "Genel keşif"} odaklı
-• ${transport} ulaşımına uygun
-• ${route.length} nokta içeriyor
-
-Minimum mesafe, maksimum deneyim hedeflendi.
-    `);
-
     setLoading(false);
 
   }, [places, userLocation]);
@@ -112,10 +101,14 @@ Minimum mesafe, maksimum deneyim hedeflendi.
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-      <Text style={styles.title}>✨ Senin İçin Planlandı</Text>
-
-      <View style={styles.summaryBox}>
-        <Text style={styles.summaryText}>{summary}</Text>
+      {/* 🔥 HEADER */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>
+          📍 {city}
+        </Text>
+        <Text style={styles.headerSubtitle}>
+          {duration} • {transport}
+        </Text>
       </View>
 
       {plannedDays.map((day, dayIndex) => (
@@ -180,7 +173,7 @@ Minimum mesafe, maksimum deneyim hedeflendi.
   );
 }
 
-// 🔥 MODERN CARD
+// 🔥 CARD
 function Card({ place, index }: any) {
   return (
     <View style={styles.card}>
@@ -194,33 +187,27 @@ function Card({ place, index }: any) {
 }
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     padding: 20,
     backgroundColor: '#f5f7fb',
   },
 
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 15,
-  },
-
-  summaryBox: {
-    backgroundColor: '#fff',
-    padding: 18,
-    borderRadius: 14,
+  header: {
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
   },
 
-  summaryText: {
-    fontSize: 14,
-    color: '#444',
-    lineHeight: 20,
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1e3a5f',
+  },
+
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#666',
   },
 
   dayContainer: {
@@ -289,4 +276,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
+
 });
