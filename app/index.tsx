@@ -9,9 +9,11 @@ import {
   Platform,
   Image,
   Keyboard,
-  Animated
+  Animated,
+  Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Index() {
   const [username, setUsername] = useState('');
@@ -20,12 +22,75 @@ export default function Index() {
 
   const logoAnim = useRef(new Animated.Value(0)).current;
 
-  const handleLogin = () => {
-    if (!username || !password) return;
-    router.push('/home');
+  // 🔥 AUTO LOGIN (EKLENDİ)
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const user = await AsyncStorage.getItem("user");
+        if (user) {
+          router.replace('/home');
+        }
+      } catch (e) {
+        console.log("AsyncStorage ERROR:", e);
+      }
+    };
+
+    checkUser();
+  }, []);
+
+  const handleLogin = async () => {
+    if (!username || !password) {
+      Alert.alert("⚠️ Eksik Bilgi", "Kullanıcı adı ve şifre gir");
+      return;
+    }
+
+    try {
+      const res = await fetch("http://192.168.1.130:5000/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          username,
+          password
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+
+        try {
+          await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        } catch (e) {
+          console.log("SAVE ERROR:", e);
+        }
+
+        Alert.alert(
+          "🎉 Giriş Başarılı",
+          "Hoş geldin!",
+          [
+            {
+              text: "Devam",
+              onPress: () => router.replace('/home')
+            }
+          ]
+        );
+
+      } else {
+        Alert.alert(
+          "❌ Giriş Hatası",
+          data.error || "Kullanıcı adı veya şifre yanlış"
+        );
+      }
+
+    } catch (err) {
+      console.log("LOGIN ERROR:", err);
+      Alert.alert("🚫 Bağlantı Hatası", "Sunucuya ulaşılamadı");
+    }
   };
 
-  // 🔥 KEYBOARD ANIMATION
+  // 🔥 KEYBOARD ANIMATION (DOKUNULMADI)
   useEffect(() => {
 
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
@@ -57,7 +122,7 @@ export default function Index() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
 
-      {/* 🔥 LOGO (ANİMASYONLU) */}
+      {/* 🔥 LOGO (DOKUNULMADI) */}
       <Animated.View
         style={[
           styles.topLogo,
@@ -83,7 +148,6 @@ export default function Index() {
         </View>
 
         <View style={styles.card}>
-
 
           <View style={styles.inputContainer}>
             <TextInput
@@ -140,7 +204,7 @@ const styles = StyleSheet.create({
 
   topLogoImage: {
     width: 200,
-    height: 200,
+    height: 190,
     resizeMode: 'contain',
   },
 
@@ -182,14 +246,6 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
-  },
-
-  welcome: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 20,
-    color: '#0f172a',
-    textAlign: 'center',
   },
 
   inputContainer: {
