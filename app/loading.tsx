@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location'; // 🔥 EKLENDİ
 
 const { width, height } = Dimensions.get('window');
 
@@ -88,7 +89,7 @@ export default function LoadingScreen() {
 
   }, []);
 
-  // 🚀 ROUTE FIXED
+  // 🚀 ROUTE FIXED (🔥 BURASI TAM DÜZELTİLDİ)
   useEffect(() => {
 
     const fetchRoute = async () => {
@@ -96,7 +97,23 @@ export default function LoadingScreen() {
 
         const token = await AsyncStorage.getItem("token");
 
-        const startTime = Date.now(); // 🔥 MIN LOADING SÜRESİ
+        const startTime = Date.now();
+
+        // 🔥 KONUM AL (EN KRİTİK)
+        let userLat = 41.0082;
+        let userLng = 28.9784;
+
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+
+          if (status === 'granted') {
+            const loc = await Location.getCurrentPositionAsync({});
+            userLat = loc.coords.latitude;
+            userLng = loc.coords.longitude;
+          }
+        } catch (e) {
+          console.log("LOCATION ERROR:", e);
+        }
 
         const response = await fetch("http://192.168.1.130:5000/route", {
           method: "POST",
@@ -108,7 +125,16 @@ export default function LoadingScreen() {
             city: params.city,
             interest: params.interest,
             days: parseInt(params.duration as string) || 1,
-            density: parseInt(params.density as string) || 5 // 🔥 KRİTİK FIX
+            density: parseInt(params.density as string) || 5,
+
+            // 🔥 YENİ EKLENENLER
+            transport: params.transport,
+            budget: params.budget,
+            duration: params.duration,
+
+            // 🔥 EN KRİTİK
+            lat: userLat,
+            lng: userLng
           })
         });
 
@@ -118,7 +144,6 @@ export default function LoadingScreen() {
           throw new Error("Days boş geldi");
         }
 
-        // 🔥 EN AZ 2 SN LOADING GÖSTER
         const elapsed = Date.now() - startTime;
         const wait = Math.max(0, 2000 - elapsed);
 
