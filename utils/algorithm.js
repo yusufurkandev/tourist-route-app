@@ -43,43 +43,75 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// 🔥 TRANSPORT MESAFE LİMİTİ (AYNI AMA DAHA NET)
+// 🔥 TRANSPORT MESAFE LİMİTİ
 function getMaxDistance(transport) {
   if (transport === "Yürüyüş") return 3;
   if (transport === "Toplu taşıma") return 15;
   return Infinity;
 }
 
-// 🔥 FİLTRE (EN KRİTİK FIX)
-function filterByDistance(places, startLocation, transport) {
+// 🔥🔥 SMART FILTER
+function applySmartFilters(places, prefs, userLat, userLng) {
 
-  const maxDist = getMaxDistance(transport);
+  let result = [...places];
 
-  if (maxDist === Infinity) return places;
+  // 1️⃣ CATEGORY
+  if (prefs.interest) {
+    const key = normalizeCategory(prefs.interest);
 
-  const filtered = places.filter(p => {
-    const dist = calculateDistance(
-      startLocation.lat,
-      startLocation.lng,
-      p.lat,
-      p.lng
-    );
+    result = result.filter(p => {
+      const cats = [];
 
-    return dist <= maxDist;
-  });
+      if (Array.isArray(p.categories)) {
+        cats.push(...p.categories.map(c => normalizeCategory(c)));
+      }
 
-  // 🔥 fallback (ama EN YAKINLARI SEÇ!)
-  if (filtered.length === 0) {
-    return [...places]
+      if (p.category) {
+        cats.push(normalizeCategory(p.category));
+      }
+
+      return cats.some(c => c.includes(key));
+    });
+  }
+
+  if (result.length === 0) result = [...places];
+
+  // 2️⃣ BUDGET
+  if (prefs.budget === "low") {
+    result = result.filter(p => (p.cost || 0) <= 2);
+  }
+
+  if (prefs.budget === "high") {
+    result = result.filter(p => (p.cost || 0) >= 3);
+  }
+
+  if (result.length === 0) result = [...places];
+
+  // 3️⃣ DISTANCE
+  const maxDist = getMaxDistance(prefs.transport);
+
+  if (maxDist !== Infinity) {
+    result = result.filter(p => {
+      const d = calculateDistance(userLat, userLng, p.lat, p.lng);
+      return d <= maxDist;
+    });
+  }
+
+  // 🔥 fallback ama EN YAKIN + EN POPÜLER
+  if (result.length === 0) {
+    result = [...places]
       .sort((a, b) => {
-        const da = calculateDistance(startLocation.lat, startLocation.lng, a.lat, a.lng);
-        const db = calculateDistance(startLocation.lat, startLocation.lng, b.lat, b.lng);
-        return da - db;
+        const da = calculateDistance(userLat, userLng, a.lat, a.lng);
+        const db = calculateDistance(userLat, userLng, b.lat, b.lng);
+
+        // önce yakınlık sonra popularity
+        if (da !== db) return da - db;
+        return (b.popularity || 0) - (a.popularity || 0);
       })
       .slice(0, 5);
   }
 
-  return filtered;
+  return result;
 }
 
 // 🔥 açı
@@ -106,7 +138,7 @@ function calculateAngle(prev, current, next) {
   return Math.acos(Math.max(-1, Math.min(1, cos)));
 }
 
-// 🔥 SCORE (SENİN YAPI + GÜÇLENDİRME)
+// 🔥 SCORE (GÜÇLENDİRİLDİ)
 function calculateSmartScore(current, place, prefs) {
 
   const distance = calculateDistance(
@@ -118,41 +150,40 @@ function calculateSmartScore(current, place, prefs) {
 
   let score = 0;
 
-  // ⭐ POPULARITY
-  score += (place.popularity || 0) * 3;
+  // 🔥🔥 EN ÖNEMLİ FIX
+  score += (place.popularity || 0) * 10;
 
-  // 🔥 TRANSPORT DISTANCE
+  // 🔥 INTEREST BOOST
+  if (prefs.interest && place.category) {
+    if (
+      normalizeCategory(place.category).includes(
+        normalizeCategory(prefs.interest)
+      )
+    ) {
+      score += 50;
+    }
+  }
+
+  // 🔥 DISTANCE
   if (prefs.transport === "Yürüyüş") {
-    if (distance > 3) return -9999; // 🔥 HARD BLOCK
-    score -= distance * 7;
+    if (distance > 3) return -9999;
+    score -= distance * 5;
   }
   else if (prefs.transport === "Toplu taşıma") {
-    score -= distance * 3;
+    score -= distance * 2;
   }
   else {
     score -= distance * 1;
   }
 
-  // 💰 BUDGET
+  // 🔥 BUDGET
   if (prefs.budget === "low") {
-    if ((place.cost || 0) <= 2) score += 20;
-    else score -= 25;
+    if ((place.cost || 0) <= 2) score += 15;
+    else score -= 20;
   }
 
   if (prefs.budget === "high") {
-    if ((place.cost || 0) >= 3) score += 20;
-  }
-
-  // 🎯 INTEREST BOOST (EKLENDİ)
-  if (prefs.interest && place.category) {
-    if (normalizeCategory(place.category).includes(normalizeCategory(prefs.interest))) {
-      score += 25;
-    }
-  }
-
-  // ⏱ DURATION
-  if (prefs.duration) {
-    if (place.duration > prefs.duration) score -= 10;
+    if ((place.cost || 0) >= 3) score += 15;
   }
 
   return score;
@@ -167,7 +198,7 @@ function selectNextPlace(current, places, prefs, prev = null) {
 
     let score = calculateSmartScore(current, place, prefs);
 
-    if (score === -9999) continue; // 🔥 HARD FILTER
+    if (score === -9999) continue;
 
     const angle = calculateAngle(prev, current, place);
 
@@ -189,38 +220,25 @@ function buildSmartRoute(startLocation, places, prefs) {
 
   if (!places || places.length === 0) return [];
 
-  // 🔥 MESAFE FİLTRESİ
-  places = filterByDistance(places, startLocation, prefs.transport);
+  places = applySmartFilters(
+    places,
+    prefs,
+    startLocation.lat,
+    startLocation.lng
+  );
 
-  if (places.length === 0) return [];
+  // 🔥 POPULARITY + DISTANCE ORDER
+  places = [...places].sort((a, b) => {
+    const pa = b.popularity || 0;
+    const pb = a.popularity || 0;
+    return pa - pb;
+  });
 
-  // 🔥 RANDOM (hafif karıştırma)
-  places = [...places].sort(() => Math.random() - 0.3);
-
-  let closestStart = places[0];
-  let minDist = Infinity;
-
-  for (const p of places) {
-    const dist = calculateDistance(
-      startLocation.lat,
-      startLocation.lng,
-      p.lat,
-      p.lng
-    );
-
-    if (dist < minDist) {
-      minDist = dist;
-      closestStart = p;
-    }
-  }
-
-  const route = [];
-  let current = { lat: closestStart.lat, lng: closestStart.lng };
+  let route = [];
+  let current = { lat: startLocation.lat, lng: startLocation.lng };
   let prev = null;
 
-  let remaining = places.filter(p => p !== closestStart);
-
-  route.push(closestStart);
+  let remaining = [...places];
 
   while (remaining.length > 0) {
 
@@ -233,13 +251,13 @@ function buildSmartRoute(startLocation, places, prefs) {
     prev = current;
     current = { lat: next.lat, lng: next.lng };
 
-    remaining = remaining.filter((p) => p !== next);
+    remaining = remaining.filter(p => p !== next);
   }
 
   return route;
 }
 
-// 🔥 SCORE (GÜÇLENDİRİLDİ)
+// 🔥 SCORE
 function scorePlaces(placesList, prefs, userLat, userLon) {
   return placesList.map((place) => {
 
@@ -250,16 +268,13 @@ function scorePlaces(placesList, prefs, userLat, userLon) {
       place.lng
     );
 
-    let score = (place.popularity || 0) * 2;
+    let score = (place.popularity || 0) * 5;
 
     if (prefs.transport === "Yürüyüş" && distance > 3) {
       score -= 999;
     }
 
     score -= distance * 2;
-
-    if (prefs.budget === "low" && place.cost > 2) score -= 15;
-    if (prefs.budget === "high" && place.cost >= 3) score += 10;
 
     return {
       ...place,
@@ -269,12 +284,17 @@ function scorePlaces(placesList, prefs, userLat, userLon) {
   });
 }
 
-// 🔥 TOP
+// 🔥 TOP (POPÜLER ÖNCE)
 function selectTopPlaces(scoredPlaces, limit) {
   const safeLimit = Number(limit) || 5;
 
   return [...scoredPlaces]
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .sort((a, b) => {
+      if ((b.popularity || 0) !== (a.popularity || 0)) {
+        return (b.popularity || 0) - (a.popularity || 0);
+      }
+      return (b.score || 0) - (a.score || 0);
+    })
     .slice(0, safeLimit);
 }
 

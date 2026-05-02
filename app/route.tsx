@@ -6,7 +6,7 @@ import {
   TouchableOpacity
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react'; // 🔥 EKLENDİ
+import { useMemo } from 'react';
 
 // TYPE
 type Place = {
@@ -32,15 +32,11 @@ export default function RouteScreen() {
     console.log("JSON ERROR:", e);
   }
 
-  // 🔥 FIXED SHUFFLE (MUTATION YOK)
-  const shuffle = (array: any[]) => {
-    return [...array].sort(() => Math.random() - 0.5);
-  };
-
-  // 🔥 STABLE DATA (EN KRİTİK FIX)
+  // 🔥 STABLE DATA (SHUFFLE KALDIRILDI)
   const processedDays = useMemo(() => {
     return days.map(day => {
-      const cleanDay = shuffle(day).slice(0, 6);
+
+      const cleanDay = [...day].slice(0, 6); // 🔥 sadece limit, sıralama korunuyor
 
       return {
         morning: cleanDay.slice(0, 2),
