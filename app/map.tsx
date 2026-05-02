@@ -2,7 +2,7 @@ import { View, StyleSheet, Text, Animated, TouchableOpacity, Linking } from 'rea
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useEffect, useState } from 'react';
-import * as Location from 'expo-location'; // ✅ EKLENDİ
+import * as Location from 'expo-location';
 
 export default function MapScreen() {
 
@@ -13,12 +13,11 @@ export default function MapScreen() {
   const [routePlaces, setRoutePlaces] = useState<any[]>([]);
   const [animatedCoords, setAnimatedCoords] = useState<any[]>([]);
   const [visibleMarkers, setVisibleMarkers] = useState<any[]>([]);
-  const [userLocation, setUserLocation] = useState<any>(null); // ✅ EKLENDİ
+  const [userLocation, setUserLocation] = useState<any>(null);
 
   const dropAnim = useRef(new Animated.Value(0)).current;
   const currentDay = parseInt(params.currentDay as string) || 0;
 
-  // ✅ USER LOCATION (EKLENDİ)
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -29,27 +28,28 @@ export default function MapScreen() {
     })();
   }, []);
 
-  // 🔥 SAFE PARSE
+  // 🔥 FIXED PARSE
   useEffect(() => {
     try {
-      const raw = params.days;
-      if (!raw) return;
+      if (!params.days) return;
 
-      const parsedDays = JSON.parse(raw as string);
+      const parsedDays = JSON.parse(params.days as string);
 
       if (!Array.isArray(parsedDays)) return;
       if (!parsedDays[currentDay]) return;
 
-      const clean = parsedDays[currentDay].filter(
-        (p: any) => p && p.lat && p.lng
-      );
+      const clean = parsedDays[currentDay]
+        .filter((p: any) => p && p.lat && p.lng)
+        .filter((p: any, index: number, self: any[]) =>
+          index === self.findIndex(x => x.lat === p.lat && x.lng === p.lng)
+        ); // duplicate temizleme
 
       setRoutePlaces(clean);
 
     } catch (e) {
       console.log("JSON ERROR:", e);
     }
-  }, []);
+  }, [params.days, currentDay]);
 
   const startLocation =
     routePlaces.length > 0
@@ -138,7 +138,6 @@ export default function MapScreen() {
 
   }, [animatedCoords]);
 
-  // ✅ SADECE BURASI DEĞİŞTİ
   const openNavigation = () => {
 
     if (!routePlaces || routePlaces.length === 0) return;
@@ -220,16 +219,18 @@ export default function MapScreen() {
 
       </MapView>
 
+      {/* 🔥 GELİŞMİŞ PANEL */}
       <View style={styles.bottomPanel}>
 
         <Text style={styles.dayText}>
-          Gün {currentDay + 1}
+          📅 Gün {currentDay + 1}
         </Text>
 
         <View style={styles.buttonsRow}>
 
           {currentDay > 0 && (
             <TouchableOpacity
+              style={styles.navButton}
               onPress={() =>
                 router.push({
                   pathname: '/map',
@@ -241,12 +242,13 @@ export default function MapScreen() {
                 })
               }
             >
-              <Text style={styles.button}>← Önceki Gün</Text>
+              <Text style={styles.navText}>← Önceki</Text>
             </TouchableOpacity>
           )}
 
           {currentDay < JSON.parse(params.days as string).length - 1 && (
             <TouchableOpacity
+              style={styles.navButton}
               onPress={() =>
                 router.push({
                   pathname: '/map',
@@ -258,7 +260,7 @@ export default function MapScreen() {
                 })
               }
             >
-              <Text style={styles.button}>Sonraki Gün →</Text>
+              <Text style={styles.navText}>Sonraki →</Text>
             </TouchableOpacity>
           )}
 
@@ -269,7 +271,7 @@ export default function MapScreen() {
           onPress={openNavigation}
         >
           <Text style={styles.googleButtonText}>
-            Haritada Göster 🌍
+            🚀 Navigasyonu Başlat
           </Text>
         </TouchableOpacity>
 
@@ -280,6 +282,7 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
+
   container: { flex: 1 },
   map: { flex: 1 },
 
@@ -304,45 +307,54 @@ const styles = StyleSheet.create({
 
   bottomPanel: {
     position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
+    bottom: 25,
+    left: 15,
+    right: 15,
     backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 16,
+    padding: 18,
+    borderRadius: 18,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
 
   dayText: {
     textAlign: 'center',
-    fontWeight: '700',
-    fontSize: 16,
-    marginBottom: 10,
+    fontWeight: '800',
+    fontSize: 18,
+    marginBottom: 12,
   },
 
   buttonsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 12,
   },
 
-  button: {
-    color: '#007AFF',
+  navButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+
+  navText: {
+    color: '#fff',
     fontWeight: '600',
   },
 
   googleButton: {
-    marginTop: 12,
     backgroundColor: '#34A853',
-    padding: 12,
-    borderRadius: 10,
+    padding: 14,
+    borderRadius: 12,
   },
 
   googleButtonText: {
     color: '#fff',
     textAlign: 'center',
     fontWeight: '700',
+    fontSize: 16,
   },
+
 });

@@ -11,15 +11,22 @@ export function filterByInterest(placesList, interest) {
   const normalizedInterest = normalizeCategory(interest);
 
   return placesList.filter((place) => {
-    if (!place.categories) return false;
 
-    return place.categories.some(
-      (cat) => normalizeCategory(cat) === normalizedInterest
-    );
+    if (Array.isArray(place.categories)) {
+      return place.categories.some(
+        (cat) => normalizeCategory(cat).includes(normalizedInterest)
+      );
+    }
+
+    if (place.category) {
+      return normalizeCategory(place.category).includes(normalizedInterest);
+    }
+
+    return false;
   });
 }
 
-// 🔥 MESAFE (HAVERSINE)
+// 🔥 MESAFE
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
 
@@ -36,7 +43,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// 🔥🔥 EKLENDİ → açı hesaplama (zigzag önleme)
+// 🔥 açı
 function calculateAngle(prev, current, next) {
   if (!prev) return 0;
 
@@ -57,13 +64,12 @@ function calculateAngle(prev, current, next) {
   if (mag1 === 0 || mag2 === 0) return 0;
 
   const cos = dot / (mag1 * mag2);
-  const angle = Math.acos(Math.max(-1, Math.min(1, cos)));
-
-  return angle; // radyan
+  return Math.acos(Math.max(-1, Math.min(1, cos)));
 }
 
-// 🔥 SMART SCORE (YENİ SİSTEM)
+// 🔥🔥 GÜNCELLENDİ (EN KRİTİK)
 export function calculateSmartScore(current, place, prefs) {
+
   const distance = calculateDistance(
     current.lat,
     current.lng,
@@ -73,44 +79,55 @@ export function calculateSmartScore(current, place, prefs) {
 
   let score = 0;
 
-  // 📍 Distance
-  score += distance * 2;
+  // ⭐ POPULARITY
+  score += (place.popularity || 0) * 3;
 
-  // ⭐ Popülerlik
-  score += (5 - (place.popularity || 0)) * 3;
+  // 📍 DISTANCE (yakınlık avantaj)
+  score -= distance * 2;
 
-  // 💸 Bütçe
-  if (prefs.budget) {
-    const userBudget = parseInt(prefs.budget);
-    if (place.cost > userBudget) score += 50;
+  // 🚶 TRANSPORT
+  if (prefs.transport === "Yürüyüş") {
+    score -= distance * 3; // daha yakın tercih
   }
 
-  // ⏱ Süre
+  if (prefs.transport === "Araba") {
+    score -= distance * 1; // daha esnek
+  }
+
+  // 💰 BUDGET (FIX)
+  if (prefs.budget === "low") {
+    if ((place.cost || 0) <= 2) score += 20;
+    else score -= 20;
+  }
+
+  if (prefs.budget === "high") {
+    if ((place.cost || 0) >= 3) score += 20;
+  }
+
+  // ⏱ DURATION
   if (prefs.duration) {
-    const userDuration = parseInt(prefs.duration);
-    if (place.duration > userDuration) score += 10;
+    if (place.duration > prefs.duration) score -= 10;
   }
 
   return score;
 }
 
-// 🔥 SMART NEXT PLACE (GÜNCELLENDİ)
+// 🔥 NEXT PLACE
 export function selectNextPlace(current, places, prefs, prev = null) {
   let best = null;
-  let bestScore = Infinity;
+  let bestScore = -Infinity;
 
   for (const place of places) {
+
     let score = calculateSmartScore(current, place, prefs);
 
-    // 🔥 EKLENDİ → zigzag cezası
     const angle = calculateAngle(prev, current, place);
 
-    // keskin dönüşleri cezalandır
     if (angle > Math.PI / 2) {
-      score += 15;
+      score -= 10; // zigzag cezası
     }
 
-    if (score < bestScore) {
+    if (score > bestScore) {
       bestScore = score;
       best = place;
     }
@@ -119,10 +136,11 @@ export function selectNextPlace(current, places, prefs, prev = null) {
   return best;
 }
 
-// 🔥🔥 SMART ROUTE (GÜNCELLENDİ - prev eklendi)
+// 🔥 ROUTE
 export function buildSmartRoute(startLocation, places, prefs) {
 
-  // en yakın noktadan başlat (önceki adım)
+  if (!places || places.length === 0) return [];
+
   let closestStart = places[0];
   let minDist = Infinity;
 
@@ -175,9 +193,10 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
     let score = 0;
 
     score += (place.popularity || 0) * 2;
+    score -= distance * 2;
 
-    if (prefs.budget && place.cost > prefs.budget) score -= 3;
-    if (prefs.duration && place.duration > prefs.duration) score -= 2;
+    if (prefs.budget === "low" && place.cost > 2) score -= 10;
+    if (prefs.budget === "high" && place.cost >= 3) score += 10;
 
     return {
       ...place,
@@ -189,12 +208,17 @@ export function scorePlaces(placesList, prefs, userLat, userLon) {
 
 // 🔥 TOP SELECTION
 export function selectTopPlaces(scoredPlaces, limit) {
+
+  if (!Array.isArray(scoredPlaces)) return [];
+
+  const safeLimit = Number(limit) || 5;
+
   return [...scoredPlaces]
     .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(limit > 0 ? limit : 5);
+    .slice(0, safeLimit);
 }
 
-// 🔥 ALTERNATİF ÖNERİ
+// 🔥 ALTERNATİF
 export function getAlternativePlaces(allPlaces, selectedPlaces) {
   return allPlaces
     .filter((p) => !selectedPlaces.includes(p))
@@ -202,7 +226,7 @@ export function getAlternativePlaces(allPlaces, selectedPlaces) {
     .slice(0, 3);
 }
 
-// 🔥 GÜN İÇİ ZAMAN PLANLAMA
+// 🔥 TIME SLOT
 export function assignTimeSlots(dayPlaces) {
   return {
     morning: dayPlaces.slice(0, 2),
@@ -211,7 +235,7 @@ export function assignTimeSlots(dayPlaces) {
   };
 }
 
-// 🔥 BASİT GÜN BÖLME
+// 🔥 DAY SPLIT
 export function splitIntoDaysByCount(routePlaces, totalDays = 1) {
   if (totalDays <= 1) return [routePlaces];
 
@@ -229,7 +253,7 @@ export function splitIntoDaysByCount(routePlaces, totalDays = 1) {
   return days;
 }
 
-// 🔥 SMART CLUSTER
+// 🔥 CLUSTER
 export function splitIntoDaysSmart(routePlaces, totalDays = 1) {
   if (totalDays <= 1) return [routePlaces];
 

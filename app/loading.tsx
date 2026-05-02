@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Animated, Dimensions, Platform } from 'react-na
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -14,7 +15,6 @@ export default function LoadingScreen() {
   const textY = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // ☁️ BULUTLAR
   const clouds = [
     useRef(new Animated.Value(height)).current,
     useRef(new Animated.Value(height + 120)).current,
@@ -33,7 +33,6 @@ export default function LoadingScreen() {
 
   const [index, setIndex] = useState(0);
 
-  // ✨ TEXT
   const animateText = () => {
     fadeAnim.setValue(0);
     textY.setValue(30);
@@ -55,7 +54,6 @@ export default function LoadingScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // ☁️ ANİMASYON
   useEffect(() => {
 
     clouds.forEach((c, i) => {
@@ -90,28 +88,73 @@ export default function LoadingScreen() {
 
   }, []);
 
-  // 🚀 ROUTE
+  // 🚀 ROUTE FIXED
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      router.replace({
-        pathname: "/route",
-        params: params
-      });
-    }, 6500);
 
-    return () => clearTimeout(timeout);
+    const fetchRoute = async () => {
+      try {
+
+        const token = await AsyncStorage.getItem("token");
+
+        const startTime = Date.now(); // 🔥 MIN LOADING SÜRESİ
+
+        const response = await fetch("http://192.168.1.130:5000/route", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            city: params.city,
+            interest: params.interest,
+            days: parseInt(params.duration as string) || 1,
+            density: parseInt(params.density as string) || 5 // 🔥 KRİTİK FIX
+          })
+        });
+
+        const data = await response.json();
+
+        if (!data || !data.days) {
+          throw new Error("Days boş geldi");
+        }
+
+        // 🔥 EN AZ 2 SN LOADING GÖSTER
+        const elapsed = Date.now() - startTime;
+        const wait = Math.max(0, 2000 - elapsed);
+
+        setTimeout(() => {
+          router.replace({
+            pathname: "/route",
+            params: {
+              days: JSON.stringify(data.days),
+              transport: params.transport
+            }
+          });
+        }, wait);
+
+      } catch (err) {
+        console.log("ROUTE ERROR:", err);
+
+        router.replace({
+          pathname: "/route",
+          params: {
+            days: JSON.stringify([]),
+            transport: params.transport
+          }
+        });
+      }
+    };
+
+    fetchRoute();
+
   }, []);
 
   return (
     <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }] }]}>
 
-      {/* 🌈 SKY (GRADIENT HİSSİ) */}
       <View style={styles.sky} />
-
-      {/* ☀️ GÜNEŞ GLOW */}
       <View style={styles.sun} />
 
-      {/* ☁️ ARKA BULUTLAR */}
       {clouds.map((c, i) => (
         <Animated.View
           key={i}
@@ -128,7 +171,6 @@ export default function LoadingScreen() {
         </Animated.View>
       ))}
 
-      {/* ☁️ ÖN BULUT */}
       <Animated.View
         style={[
           styles.frontCloud,
@@ -140,20 +182,17 @@ export default function LoadingScreen() {
           }
         ]}
       >
-        {/* 🔥 iOS BLUR */}
         {Platform.OS === 'ios' ? (
           <BlurView intensity={60} style={styles.blurCloud}>
             <Cloud large />
           </BlurView>
         ) : (
-          // Android fallback
           <View style={styles.androidBlur}>
             <Cloud large />
           </View>
         )}
       </Animated.View>
 
-      {/* ✨ TEXT */}
       <Animated.Text
         style={[
           styles.text,
@@ -170,7 +209,6 @@ export default function LoadingScreen() {
   );
 }
 
-// ☁️ BULUT
 function Cloud({ large = false }: any) {
   return (
     <View style={[styles.cloudContainer, large && { transform: [{ scale: 2 }] }]}>
