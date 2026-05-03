@@ -124,6 +124,7 @@ export default function LoadingScreen() {
           body: JSON.stringify({
             city: params.city,
             interest: params.interest,
+            travelType: params.travelType,
             days: parseInt(params.duration as string) || 1,
             density: parseInt(params.density as string) || 5,
 

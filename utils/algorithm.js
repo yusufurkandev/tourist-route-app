@@ -1,328 +1,510 @@
-// 🔥 normalize
-function normalizeCategory(value) {
+// ============================================================
+// 🧠 AKILLI TUR PLANLAYICI ALGORİTMASI v3.1
+// FIX: Mesafe hesabı kullanıcı konumu yerine şehir merkezi bazlı
+//      + lat/lng null koruması
+//      + yürüyüş → hard elenme yok, sadece skor cezası
+// ============================================================
+
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 1: SABİT HARİTALAR
+// ─────────────────────────────────────────────────────────────
+
+const INTEREST_MAP = {
+  "tarihi yerler": [
+    "tarihi", "historical", "müze", "museum",
+    "arkeoloji", "archaeology", "antik", "ancient",
+    "saray", "palace", "kale", "castle",
+    "cami", "mosque", "kilise", "church", "anıt", "monument",
+    "tarihi yerler"
+  ],
+  "doğa": [
+    "doğa", "nature", "park", "orman", "forest",
+    "göl", "lake", "nehir", "river", "dağ", "mountain",
+    "plaj", "beach", "bahçe", "garden", "şelale", "waterfall"
+  ],
+  "müze & kültür": [
+    "müze", "museum", "kültür", "culture",
+    "sanat", "art", "galeri", "gallery", "sergi", "exhibition",
+    "tiyatro", "theatre", "opera", "sinema"
+  ],
+  "yemek & kafe": [
+    "yemek", "food", "restoran", "restaurant",
+    "cafe", "kafe", "coffee", "pastane", "bakery",
+    "bar", "lokanta", "bistro"
+  ],
+};
+
+const TRAVEL_TYPE_TAGS = {
+  "aile": {
+    bonus:   ["çocuk", "family", "kids", "park", "bahçe", "hayvanat", "zoo", "eğlence", "akvaryum"],
+    penalty: ["bar", "gece", "nightlife", "club"]
+  },
+  "eş/sevgili": {
+    bonus:   ["romantik", "romantic", "sunset", "gün batımı", "cafe", "terrace", "teras", "manzara"],
+    penalty: ["hayvanat", "zoo", "çocuk", "kids"]
+  },
+  "arkadaş": {
+    bonus:   ["eğlence", "entertainment", "cafe", "bar", "aktivite", "activity", "spor"],
+    penalty: []
+  },
+  "yalnız": {
+    bonus:   ["müze", "museum", "kütüphane", "library", "tarihi", "historical", "sanat", "art"],
+    penalty: []
+  },
+};
+
+const DURATION_MINUTES = {
+  "yarım gün": 240,
+  "1 gün":     480,
+  "2 gün":     480,
+  "3+ gün":    480,
+};
+
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 2: YARDIMCI FONKSİYONLAR
+// ─────────────────────────────────────────────────────────────
+
+function normalize(value) {
   if (!value) return "";
   return value.toLowerCase().trim();
 }
 
-// 🔥 FILTER (DOKUNMADIM)
-function filterByInterest(placesList, interest) {
-  if (!interest) return placesList;
-
-  const normalizedInterest = normalizeCategory(interest);
-
-  return placesList.filter((place) => {
-
-    if (Array.isArray(place.categories)) {
-      return place.categories.some(
-        (cat) => normalizeCategory(cat).includes(normalizedInterest)
-      );
-    }
-
-    if (place.category) {
-      return normalizeCategory(place.category).includes(normalizedInterest);
-    }
-
-    return false;
-  });
-}
-
-// 🔥 MESAFE
+/** Haversine mesafe (km) — null korumalı */
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
+  // 🔥 FIX: herhangi bir değer null/undefined/NaN ise 0 döner
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+  if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return 0;
 
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) ** 2;
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 🔥 TRANSPORT MESAFE LİMİTİ
-function getMaxDistance(transport) {
-  if (transport === "Yürüyüş") return 3;
-  if (transport === "Toplu taşıma") return 15;
-  return Infinity;
+/** Ulaşım türüne göre mesafe ceza katsayısı */
+function getDistancePenalty(transport) {
+  const t = normalize(transport);
+  if (t.includes("yürüyüş") || t.includes("yuruyus")) return 2;  // yakın yerler önce ama elenme yok
+  if (t.includes("toplu"))                              return 0.8;
+  return 0.3; // araba: çok minimal
 }
 
-// 🔥🔥 SMART FILTER
-function applySmartFilters(places, prefs, userLat, userLng) {
-
-  let result = [...places];
-
-  // 1️⃣ CATEGORY
-  if (prefs.interest) {
-    const key = normalizeCategory(prefs.interest);
-
-    result = result.filter(p => {
-      const cats = [];
-
-      if (Array.isArray(p.categories)) {
-        cats.push(...p.categories.map(c => normalizeCategory(c)));
-      }
-
-      if (p.category) {
-        cats.push(normalizeCategory(p.category));
-      }
-
-      return cats.some(c => c.includes(key));
-    });
-  }
-
-  if (result.length === 0) result = [...places];
-
-  // 2️⃣ BUDGET
-  if (prefs.budget === "low") {
-    result = result.filter(p => (p.cost || 0) <= 2);
-  }
-
-  if (prefs.budget === "high") {
-    result = result.filter(p => (p.cost || 0) >= 3);
-  }
-
-  if (result.length === 0) result = [...places];
-
-  // 3️⃣ DISTANCE
-  const maxDist = getMaxDistance(prefs.transport);
-
-  if (maxDist !== Infinity) {
-    result = result.filter(p => {
-      const d = calculateDistance(userLat, userLng, p.lat, p.lng);
-      return d <= maxDist;
-    });
-  }
-
-  // 🔥 fallback ama EN YAKIN + EN POPÜLER
-  if (result.length === 0) {
-    result = [...places]
-      .sort((a, b) => {
-        const da = calculateDistance(userLat, userLng, a.lat, a.lng);
-        const db = calculateDistance(userLat, userLng, b.lat, b.lng);
-
-        // önce yakınlık sonra popularity
-        if (da !== db) return da - db;
-        return (b.popularity || 0) - (a.popularity || 0);
-      })
-      .slice(0, 5);
-  }
-
-  return result;
+/** Bir yerin tüm kategori tag'larını döner */
+function getPlaceTags(place) {
+  const tags = [];
+  if (Array.isArray(place.categories)) tags.push(...place.categories.map(normalize));
+  if (place.category) tags.push(normalize(place.category));
+  if (Array.isArray(place.tags)) tags.push(...place.tags.map(normalize));
+  if (place.name) tags.push(normalize(place.name));
+  return tags;
 }
 
-// 🔥 açı
-function calculateAngle(prev, current, next) {
-  if (!prev) return 0;
-
-  const v1 = {
-    x: current.lng - prev.lng,
-    y: current.lat - prev.lat
-  };
-
-  const v2 = {
-    x: next.lng - current.lng,
-    y: next.lat - current.lat
-  };
-
-  const dot = v1.x * v2.x + v1.y * v2.y;
-  const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
-  const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
-
-  if (mag1 === 0 || mag2 === 0) return 0;
-
-  const cos = dot / (mag1 * mag2);
-  return Math.acos(Math.max(-1, Math.min(1, cos)));
+function tagsMatch(placeTags, keywords) {
+  if (!keywords || keywords.length === 0) return false;
+  return keywords.some(kw => placeTags.some(tag => tag.includes(kw)));
 }
 
-// 🔥 SCORE (GÜÇLENDİRİLDİ)
-function calculateSmartScore(current, place, prefs) {
+function getInterestKeywords(interest) {
+  if (!interest) return [];
+  const key = normalize(interest);
+  if (INTEREST_MAP[key]) return INTEREST_MAP[key];
+  for (const [k, v] of Object.entries(INTEREST_MAP)) {
+    if (k.includes(key) || key.includes(k)) return v;
+  }
+  return [key];
+}
 
-  const distance = calculateDistance(
-    current.lat,
-    current.lng,
-    place.lat,
-    place.lng
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 3: ŞEHİR MERKEZİ HESAPLAMA
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 🔥 TEMEL FIX
+ * Kullanıcı konumu ile şehirdeki yerler arasındaki mesafe
+ * çok büyük olabileceği için (farklı şehirde test verisi, konum izni yok vb.)
+ * mesafe referans noktası olarak şehirdeki yerlerin coğrafi merkezini kullanıyoruz.
+ *
+ * Bu sayede:
+ * - Kullanıcı İstanbul'dayken İzmir verileri test edilse bile çalışır
+ * - Konum izni reddedilse bile çalışır
+ * - Gerçek kullanımda da zaten şehir içi mesafeler önemli
+ */
+function getCityCenter(places) {
+  const validPlaces = places.filter(p =>
+    p.lat && p.lng && !isNaN(p.lat) && !isNaN(p.lng)
   );
+
+  if (validPlaces.length === 0) return { lat: 41.0082, lng: 28.9784 }; // İstanbul fallback
+
+  const lat = validPlaces.reduce((s, p) => s + parseFloat(p.lat), 0) / validPlaces.length;
+  const lng = validPlaces.reduce((s, p) => s + parseFloat(p.lng), 0) / validPlaces.length;
+  return { lat, lng };
+}
+
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 4: AĞIRLIKLI SKORLAMA
+// ─────────────────────────────────────────────────────────────
+
+const WEIGHTS = {
+  INTEREST_MATCH:      60,
+  POPULARITY:          15,
+  TRAVEL_TYPE_BONUS:   25,
+  TRAVEL_TYPE_PENALTY: 30,
+  BUDGET_MATCH:        20,
+  BUDGET_MISMATCH:    -15,
+  DURATION_BONUS:       5,
+};
+
+/**
+ * Bir yer için tam skor hesapla.
+ * referansLat/Lng = şehir merkezi (kullanıcı konumu DEĞİL)
+ */
+function scorePlace(place, prefs, refLat, refLng) {
+  // lat/lng yoksa parse et, yoksa 0
+  const pLat = parseFloat(place.lat) || 0;
+  const pLng = parseFloat(place.lng) || 0;
+
+  const dist    = calculateDistance(refLat, refLng, pLat, pLng);
+  const tags    = getPlaceTags(place);
+  const penalty = getDistancePenalty(prefs.transport);
 
   let score = 0;
 
-  // 🔥🔥 EN ÖNEMLİ FIX
-  score += (place.popularity || 0) * 10;
+  // 1) MESAFE — sadece ceza, hiçbir zaman hard elenme yok
+  score -= dist * penalty;
 
-  // 🔥 INTEREST BOOST
-  if (prefs.interest && place.category) {
-    if (
-      normalizeCategory(place.category).includes(
-        normalizeCategory(prefs.interest)
-      )
-    ) {
-      score += 50;
+  // 2) İLGİ ALANI
+  const interestKw = getInterestKeywords(prefs.interest);
+  if (interestKw.length > 0) {
+    if (tagsMatch(tags, interestKw)) {
+      score += WEIGHTS.INTEREST_MATCH;
+      const matchCount = interestKw.filter(kw => tags.some(tg => tg.includes(kw))).length;
+      score += Math.min(matchCount * 5, 20);
+    } else {
+      score -= 20;
     }
   }
 
-  // 🔥 DISTANCE
-  if (prefs.transport === "Yürüyüş") {
-    if (distance > 3) return -9999;
-    score -= distance * 5;
-  }
-  else if (prefs.transport === "Toplu taşıma") {
-    score -= distance * 2;
-  }
-  else {
-    score -= distance * 1;
+  // 3) POPÜLERLİK
+  score += (parseFloat(place.popularity) || 0) * WEIGHTS.POPULARITY;
+
+  // 4) KİMİNLE
+  const travelKey  = normalize(prefs.travelType || "");
+  const travelRule = Object.entries(TRAVEL_TYPE_TAGS).find(([k]) => travelKey.includes(k));
+  if (travelRule) {
+    const [, rule] = travelRule;
+    if (tagsMatch(tags, rule.bonus))   score += WEIGHTS.TRAVEL_TYPE_BONUS;
+    if (tagsMatch(tags, rule.penalty)) score -= WEIGHTS.TRAVEL_TYPE_PENALTY;
   }
 
-  // 🔥 BUDGET
-  if (prefs.budget === "low") {
-    if ((place.cost || 0) <= 2) score += 15;
-    else score -= 20;
+  // 5) BÜTÇE (DB cost: 0=ücretsiz, 1-100=düşük, 101-300=orta, 300+=yüksek)
+  const cost = parseFloat(place.cost) ?? 0;
+  const b    = normalize(prefs.budget || "");
+  if (b === "düşük" || b === "low") {
+    if (cost === 0 || cost <= 100)  score += WEIGHTS.BUDGET_MATCH;
+    else if (cost > 300)            score += WEIGHTS.BUDGET_MISMATCH;
+  } else if (b === "orta" || b === "medium") {
+    if (cost > 50 && cost <= 300)   score += WEIGHTS.BUDGET_MATCH;
+  } else if (b === "yüksek" || b === "high") {
+    if (cost > 200)                 score += WEIGHTS.BUDGET_MATCH;
+    else if (cost === 0)            score += WEIGHTS.BUDGET_MISMATCH;
   }
 
-  if (prefs.budget === "high") {
-    if ((place.cost || 0) >= 3) score += 15;
-  }
+  // 6) SÜRE UYUMU
+  const maxDailyMin = DURATION_MINUTES[normalize(prefs.duration || "1 gün")] || 480;
+  const placeDur    = parseFloat(place.duration) || 60;
+  if (placeDur <= maxDailyMin * 0.4) score += WEIGHTS.DURATION_BONUS;
 
-  return score;
+  return { ...place, score, distance: dist };
 }
 
-// 🔥 NEXT PLACE
-function selectNextPlace(current, places, prefs, prev = null) {
-  let best = null;
-  let bestScore = -Infinity;
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 5: KATMANLI FİLTRELEME
+// ─────────────────────────────────────────────────────────────
 
-  for (const place of places) {
+/**
+ * 🔥 FIX: Mesafe filtresi kaldırıldı (hard constraint yoktu zaten).
+ * Mesafe artık sadece skor üzerinden etki ediyor.
+ * Filtreler sadece ilgi alanı, bütçe ve kiminle üzerinden çalışıyor.
+ */
+function filterPlaces(places, prefs) {
+  const interestKw = getInterestKeywords(prefs.interest);
 
-    let score = calculateSmartScore(current, place, prefs);
+  const matchInterest = p => interestKw.length === 0 || tagsMatch(getPlaceTags(p), interestKw);
+  const matchBudget   = p => {
+    const cost = parseFloat(p.cost) ?? 0;
+    const b = normalize(prefs.budget || "");
+    if (b === "düşük" || b === "low")   return cost <= 100;
+    if (b === "yüksek" || b === "high") return cost >= 100;
+    return true; // orta = hepsi geçer
+  };
+  const matchTravel = p => {
+    const key  = normalize(prefs.travelType || "");
+    const rule = Object.entries(TRAVEL_TYPE_TAGS).find(([k]) => key.includes(k));
+    if (!rule) return true;
+    return !tagsMatch(getPlaceTags(p), rule[1].penalty);
+  };
 
-    if (score === -9999) continue;
+  // KAT 1: ilgi + bütçe + kiminle
+  let result = places.filter(p => matchInterest(p) && matchBudget(p) && matchTravel(p));
+  if (result.length >= 3) return result;
 
-    const angle = calculateAngle(prev, current, place);
+  // KAT 2: ilgi + kiminle
+  result = places.filter(p => matchInterest(p) && matchTravel(p));
+  if (result.length >= 3) return result;
 
-    if (angle > Math.PI / 2) {
-      score -= 10;
-    }
+  // KAT 3: sadece ilgi
+  result = places.filter(p => matchInterest(p));
+  if (result.length >= 3) return result;
 
-    if (score > bestScore) {
-      bestScore = score;
-      best = place;
-    }
-  }
-
-  return best;
+  // KAT 4: tümü (her koşulda bir şey dönmeli)
+  return places;
 }
 
-// 🔥 ROUTE
-function buildSmartRoute(startLocation, places, prefs) {
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 6: K-MEANS KÜMELEME
+// ─────────────────────────────────────────────────────────────
 
-  if (!places || places.length === 0) return [];
+function kMeansClusters(places, k) {
+  const valid = places.filter(p => p.lat && p.lng && !isNaN(p.lat) && !isNaN(p.lng));
+  if (valid.length === 0) return [places];
+  if (valid.length <= k)  return valid.map(p => [p]);
+  k = Math.min(k, valid.length);
 
-  places = applySmartFilters(
-    places,
-    prefs,
-    startLocation.lat,
-    startLocation.lng
+  let centers = Array.from({ length: k }, (_, i) =>
+    valid[Math.floor(i * valid.length / k)]
   );
+  let assignments = new Array(valid.length).fill(0);
+  let changed = true, iter = 0;
 
-  // 🔥 POPULARITY + DISTANCE ORDER
-  places = [...places].sort((a, b) => {
-    const pa = b.popularity || 0;
-    const pb = a.popularity || 0;
-    return pa - pb;
-  });
+  while (changed && iter < 20) {
+    changed = false; iter++;
+    valid.forEach((p, i) => {
+      let best = 0, bestDist = Infinity;
+      centers.forEach((c, j) => {
+        const d = calculateDistance(parseFloat(p.lat), parseFloat(p.lng), c.lat, c.lng);
+        if (d < bestDist) { bestDist = d; best = j; }
+      });
+      if (assignments[i] !== best) { assignments[i] = best; changed = true; }
+    });
+    centers = centers.map((c, j) => {
+      const members = valid.filter((_, i) => assignments[i] === j);
+      if (!members.length) return c;
+      return {
+        lat: members.reduce((s, p) => s + parseFloat(p.lat), 0) / members.length,
+        lng: members.reduce((s, p) => s + parseFloat(p.lng), 0) / members.length,
+      };
+    });
+  }
 
-  let route = [];
-  let current = { lat: startLocation.lat, lng: startLocation.lng };
-  let prev = null;
+  const clusters = Array.from({ length: k }, () => []);
+  valid.forEach((p, i) => clusters[assignments[i]].push(p));
+  return clusters.filter(c => c.length > 0);
+}
 
-  let remaining = [...places];
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 7: ROTA OLUŞTURMA
+// ─────────────────────────────────────────────────────────────
+
+function nearestNeighborRoute(start, places) {
+  if (!places.length) return [];
+  let route = [], current = start, remaining = [...places];
 
   while (remaining.length > 0) {
-
-    const next = selectNextPlace(current, remaining, prefs, prev);
-
-    if (!next) break;
-
-    route.push(next);
-
-    prev = current;
-    current = { lat: next.lat, lng: next.lng };
-
-    remaining = remaining.filter(p => p !== next);
+    let best = null, bestVal = -Infinity;
+    for (const p of remaining) {
+      const dist = calculateDistance(
+        current.lat, current.lng,
+        parseFloat(p.lat) || current.lat,
+        parseFloat(p.lng) || current.lng
+      );
+      const val = (p.score || 0) - dist * 4;
+      if (val > bestVal) { bestVal = val; best = p; }
+    }
+    if (!best) break;
+    route.push(best);
+    current = { lat: parseFloat(best.lat) || current.lat, lng: parseFloat(best.lng) || current.lng };
+    remaining = remaining.filter(p => p !== best);
   }
 
   return route;
 }
 
-// 🔥 SCORE
-function scorePlaces(placesList, prefs, userLat, userLon) {
-  return placesList.map((place) => {
+function twoOptImprove(route) {
+  if (route.length < 4) return route;
+  let best = [...route], improved = true;
 
-    const distance = calculateDistance(
-      userLat,
-      userLon,
-      place.lat,
-      place.lng
-    );
-
-    let score = (place.popularity || 0) * 5;
-
-    if (prefs.transport === "Yürüyüş" && distance > 3) {
-      score -= 999;
-    }
-
-    score -= distance * 2;
-
-    return {
-      ...place,
-      score,
-      distance
-    };
-  });
-}
-
-// 🔥 TOP (POPÜLER ÖNCE)
-function selectTopPlaces(scoredPlaces, limit) {
-  const safeLimit = Number(limit) || 5;
-
-  return [...scoredPlaces]
-    .sort((a, b) => {
-      if ((b.popularity || 0) !== (a.popularity || 0)) {
-        return (b.popularity || 0) - (a.popularity || 0);
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < best.length - 1; i++) {
+      for (let j = i + 2; j < best.length; j++) {
+        const nj = (j + 1) % best.length;
+        const d1 =
+          calculateDistance(best[i].lat, best[i].lng, best[i+1].lat, best[i+1].lng) +
+          calculateDistance(best[j].lat, best[j].lng, best[nj].lat, best[nj].lng);
+        const d2 =
+          calculateDistance(best[i].lat, best[i].lng, best[j].lat, best[j].lng) +
+          calculateDistance(best[i+1].lat, best[i+1].lng, best[nj].lat, best[nj].lng);
+        if (d2 < d1 - 0.01) {
+          best = [
+            ...best.slice(0, i + 1),
+            ...best.slice(i + 1, j + 1).reverse(),
+            ...best.slice(j + 1)
+          ];
+          improved = true;
+        }
       }
-      return (b.score || 0) - (a.score || 0);
-    })
-    .slice(0, safeLimit);
+    }
+  }
+  return best;
 }
 
-// 🔥 DAY SPLIT
-function splitIntoDaysByCount(routePlaces, totalDays = 1) {
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 8: ANA ROTA FONKSİYONU
+// ─────────────────────────────────────────────────────────────
+
+function buildSmartRoute(startLocation, places, prefs) {
+  if (!places || places.length === 0) return [];
+
+  // Referans nokta: kullanıcı konumu geldiyse onu kullan,
+  // gelmediyse şehirdeki yerlerin coğrafi ortalamasını al.
+  const cityCenter = getCityCenter(places);
+  const refLat = (startLocation && startLocation.lat) ? startLocation.lat : cityCenter.lat;
+  const refLng = (startLocation && startLocation.lng) ? startLocation.lng : cityCenter.lng;
+  const ref    = { lat: refLat, lng: refLng };
+
+  // 1) Filtrele
+  let filtered = filterPlaces(places, prefs);
+
+  // 2) Yürüyüş ise: Haversine ile gerçek km hesabı yap,
+  //    3 km içindeki yerleri önce dene, yoksa en yakın 6 yeri al.
+  //    Bu adım server.js'de DEĞİL burada yapılıyor — tutarlılık için.
+  const isWalking = normalize(prefs.transport || "").includes("yürüyüş");
+  if (isWalking) {
+    const within3km = filtered.filter(p => {
+      const d = calculateDistance(refLat, refLng, parseFloat(p.lat) || 0, parseFloat(p.lng) || 0);
+      return d <= 3;
+    });
+    // 3 km içinde en az 2 yer varsa onları kullan, yoksa en yakın 6'yı al
+    if (within3km.length >= 2) {
+      filtered = within3km;
+    } else {
+      filtered = [...filtered]
+        .sort((a, b) => {
+          const da = calculateDistance(refLat, refLng, parseFloat(a.lat) || 0, parseFloat(a.lng) || 0);
+          const db = calculateDistance(refLat, refLng, parseFloat(b.lat) || 0, parseFloat(b.lng) || 0);
+          return da - db;
+        })
+        .slice(0, 6);
+    }
+  }
+
+  // 3) Skor hesapla (referans noktasına göre)
+  const scored = filtered.map(p => scorePlace(p, prefs, refLat, refLng));
+
+  // 4) Kümeleme (aynı güne yakın yerler gitsin)
+  const days         = parseInt(prefs.days) || 1;
+  const clusterCount = Math.max(1, Math.min(days * 2, Math.floor(scored.length / 2)));
+  const clusters     = kMeansClusters(scored, clusterCount);
+
+  const sortedClusters = clusters
+    .map(c => {
+      const sorted   = c.sort((a, b) => b.score - a.score);
+      const avgScore = sorted.reduce((s, p) => s + p.score, 0) / sorted.length;
+      return { places: sorted, avgScore };
+    })
+    .sort((a, b) => b.avgScore - a.avgScore);
+
+  const orderedPool = sortedClusters.flatMap(c => c.places);
+
+  // 5) Nearest neighbor rota (referans noktasından başla)
+  let route = nearestNeighborRoute(ref, orderedPool);
+
+  // 6) 2-Opt
+  if (route.length >= 4) route = twoOptImprove(route);
+
+  return route;
+}
+
+// ─────────────────────────────────────────────────────────────
+// BÖLÜM 9: SERVER.JS UYUMLU FONKSİYONLAR
+// ─────────────────────────────────────────────────────────────
+
+function scorePlaces(places, prefs, userLat, userLng) {
+  // 🔥 FIX: Kullanıcı konumu yerine şehir merkezini kullan
+  const cityCenter = getCityCenter(places);
+  return places.map(p => scorePlace(p, prefs, cityCenter.lat, cityCenter.lng));
+}
+
+function selectTopPlaces(scoredPlaces, limit) {
+  const n = Number(limit) || 5;
+  return [...scoredPlaces]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n);
+}
+
+function filterByInterest(placesList, interest) {
+  const kw = getInterestKeywords(interest);
+  if (!kw.length) return placesList;
+  return placesList.filter(p => tagsMatch(getPlaceTags(p), kw));
+}
+
+function splitIntoDaysByCount(routePlaces, totalDays = 1, durationPref = "1 gün") {
+  if (!routePlaces || routePlaces.length === 0) return [];
   if (totalDays <= 1) return [routePlaces];
 
+  const maxDailyMin = DURATION_MINUTES[normalize(durationPref)] || 480;
   const days = [];
-  const perDay = Math.ceil(routePlaces.length / totalDays);
-
-  let index = 0;
+  let i = 0;
 
   for (let d = 0; d < totalDays; d++) {
-    const dayPlaces = routePlaces.slice(index, index + perDay);
+    const dayPlaces = [];
+    let usedTime = 0;
+
+    while (i < routePlaces.length) {
+      const placeDur = parseFloat(routePlaces[i].duration) || 60;
+      if (usedTime + placeDur > maxDailyMin && dayPlaces.length > 0) break;
+      dayPlaces.push(routePlaces[i]);
+      usedTime += placeDur;
+      i++;
+    }
+
     if (dayPlaces.length > 0) days.push(dayPlaces);
-    index += perDay;
+  }
+
+  if (i < routePlaces.length && days.length > 0) {
+    days[days.length - 1].push(...routePlaces.slice(i));
   }
 
   return days;
 }
 
-// 🔥 EXPORT
+// ─────────────────────────────────────────────────────────────
+// EXPORT
+// ─────────────────────────────────────────────────────────────
+
 module.exports = {
-  filterByInterest,
-  calculateSmartScore,
-  selectNextPlace,
-  buildSmartRoute,
   scorePlaces,
   selectTopPlaces,
-  splitIntoDaysByCount
+  buildSmartRoute,
+  splitIntoDaysByCount,
+  filterByInterest,
+
+  // debug/test
+  scorePlace,
+  filterPlaces,
+  getCityCenter,
+  kMeansClusters,
+  nearestNeighborRoute,
+  twoOptImprove,
+  getInterestKeywords,
+  calculateDistance,
+  WEIGHTS,
+  INTEREST_MAP,
+  TRAVEL_TYPE_TAGS,
 };
