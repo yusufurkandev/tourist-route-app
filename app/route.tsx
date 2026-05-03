@@ -13,6 +13,10 @@ type Place = {
   lat: number;
   lng: number;
   name: string;
+  popularity?: number;
+  duration?: number;
+  cost?: number;
+  distance?: number;
   [key: string]: any;
 };
 
@@ -36,7 +40,7 @@ export default function RouteScreen() {
   const processedDays = useMemo(() => {
     return days.map(day => {
 
-      const cleanDay = [...day].slice(0, 6); // 🔥 sadece limit, sıralama korunuyor
+      const cleanDay = [...day].slice(0, 6);
 
       return {
         morning: cleanDay.slice(0, 2),
@@ -64,7 +68,13 @@ export default function RouteScreen() {
           const renderPlaces = (places: Place[]) =>
             places.map((p, i) => (
               <View key={i} style={styles.placeCard}>
-                <Text style={styles.placeText}>{p.name}</Text>
+
+                <Text style={styles.placeTitle}>{p.name}</Text>
+
+                <Text style={styles.meta}>
+                  ⭐ {p.popularity ?? "-"}  |  ⏱ {p.duration ?? "-"} dk  |  📏 {p.distance ? p.distance.toFixed(1) + " km" : "-"}
+                </Text>
+
               </View>
             ));
 
@@ -185,10 +195,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  placeText: {
-    fontSize: 14,
-    fontWeight: '600',
+  placeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     color: '#1f3c88',
+  },
+
+  meta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#4a6fa5'
   },
 
   bottomContainer: {
